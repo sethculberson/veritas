@@ -1,5 +1,5 @@
-import Sidebar from './components/Sidebar.jsx';
-import MainContent from './components/MainContent.jsx';
+import Sidebar from './components/Sidebar.tsx';
+import MainContent from './components/MainContent.tsx';
 
 function App() {
   return (
