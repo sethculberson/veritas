@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { GetInfoResponse } from '../lib/types';
+import StockGraph from './StockGraph';
 
 interface AnalysisProps {
   cik: string;
 }
 
 const Analysis: React.FC<AnalysisProps> = ({ cik }) => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GetInfoResponse>();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +56,17 @@ const Analysis: React.FC<AnalysisProps> = ({ cik }) => {
   return (
     <div>
       <h2>Analysis for CIK: {cik}</h2>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+      <StockGraph insiderData={data} />
+      <div className="mt-8">
+        <h3 className="text-xl font-bold mb-4">Insider Trading Summary</h3>
+        <p>Total Insiders: {data.total_insiders}</p>
+        <details className="mt-4">
+          <summary className="cursor-pointer font-semibold">View Raw Data</summary>
+          <pre className="mt-2 p-4 bg-gray-100 rounded text-sm overflow-auto">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        </details>
+      </div>
     </div>
   );
 };
