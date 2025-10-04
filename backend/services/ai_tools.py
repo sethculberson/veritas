@@ -613,5 +613,3 @@ def predict_impact_vector_search(filing_text: str) -> Dict[str, str]:
         return {"impact": "ERROR", "confidence": "None"}
     
 #setup_initial_sentiment_vectors()
-
-print(predict_impact_vector_search("Microsoft is a company in the US."))
