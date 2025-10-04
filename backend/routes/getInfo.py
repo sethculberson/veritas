@@ -1,3 +1,4 @@
+from services.sec_for_gemini import getSentiment
 from flask import Blueprint, jsonify
 import requests
 from bs4 import BeautifulSoup
@@ -306,6 +307,10 @@ def getInfo(CIK):
                     'low': round(float(entry.get('Low', 0)), 2),
                     'volume': int(entry.get('Volume', 0))
                 })
+
+        # Calculate the sentiment
+        sentiment = getSentiment(int(CIK))
+        print("Sentiment:", sentiment)
         
         # Return the combined data as JSON
         return jsonify({
@@ -316,7 +321,7 @@ def getInfo(CIK):
             "insiders": owner_data,
             "stock_data": formatted_stock_data,
             "ticker": ticker,
-            "data_points": len(formatted_stock_data)
+            "sentiment": sentiment,
         })
     
     except requests.exceptions.HTTPError as e:

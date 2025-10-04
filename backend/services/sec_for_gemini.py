@@ -8,9 +8,9 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
-from sec_parser import parse_sec_filings
+from .sec_parser import parse_sec_filings
 from dotenv import load_dotenv
-from ai_tools import predict_impact_vector_search
+from .ai_tools import predict_impact_vector_search
 import re
 load_dotenv()
 
@@ -52,15 +52,17 @@ def fetch_document_content(url: str):
     # This loop tracks where we are in the document flow.
     for tag in soup.find_all(lambda tag: tag.get_text(strip=True) and tag.name not in ['head', 'script', 'style']):
         text = tag.get_text(strip=True)
+        # Convert it to remove apostrophes and special characters
+        textAlphaNum = re.sub(r'[^\w\s]', '', text)
         start = "Item"
         end = "SIGNATURE"
-        start_index = text.find(start)
+        start_index = textAlphaNum.find(start)
         narrative_start = start_index + len(start)
-        signature_index = text.find(end)
+        signature_index = textAlphaNum.find(end)
         clean_narrative = re.sub(
             r'\s+',                                      # Regex to find one or more whitespace characters
             ' ',                                        # Replace them with a single space
-            text[narrative_start:signature_index]  # Slice the exact substring
+            textAlphaNum[narrative_start:signature_index]  # Slice the exact substring
         ).strip() 
         extracted_data.append(clean_narrative)
     return extracted_data[0]
@@ -124,6 +126,7 @@ def getSentiment(cik):
         output = {
             "analysis": anals
         }
-        print(json.dumps(output, ensure_ascii=False, indent=2))
+        return output
+        # print(json.dumps(output, ensure_ascii=False, indent=2))
     except Exception as e:
         print(json.dumps({"error": f"Failed to process: {e}"}))

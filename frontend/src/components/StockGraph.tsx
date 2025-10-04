@@ -61,10 +61,9 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     if (stockPriceOnDate) {
                         effectivePrice = stockPriceOnDate.price;
                         isEstimated = true;
-                        console.log(`Estimated price for ${trade.date}: $${effectivePrice}`);
                     } else {
                         effectivePrice = 0;
-                        console.log(`No stock price found for ${trade.date}`);
+
                     }
                 }
                 
@@ -372,7 +371,7 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
 
     return (
         <div 
-            className="relative w-full max-w-4xl p-4"
+            className="relative w-full max-w-4xl"
             onMouseLeave={() => {
                 // Only hide if not hovering tooltip
                 if (!isTooltipHovered) {
@@ -404,19 +403,6 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 <p className="text-sm text-gray-500 mt-1">
                     Showing {displayedTransactions.length} trades
                 </p>
-                
-                {/* Color Legend */}
-                <div className="mt-3 flex items-center space-x-4 text-sm">
-                    <span className="text-gray-600 font-medium">Legend:</span>
-                    <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-gray-600">Purchases</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span className="text-gray-600">Sales</span>
-                    </div>
-                </div>
             </div>
             
             <Line data={data} options={options} />

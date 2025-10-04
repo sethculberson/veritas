@@ -115,6 +115,8 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
     return <div>No data available for {companyName || `CIK: ${cik}`}</div>;  
   }
 
+  console.log("sentiment", data.sentiment)
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -128,6 +130,9 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
       <StockGraph insiderData={data} />
       <div className="mt-8">
         <InsiderList insiders={data.insiders} />
+      </div>
+      <div>
+        {JSON.stringify(data.sentiment)}
       </div>
     </div>
   );

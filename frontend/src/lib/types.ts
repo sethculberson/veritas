@@ -16,6 +16,7 @@ export interface GetInfoResponse {
   insiders: InsiderInfo[];
   stock_data: StockDataPoint[];
   ticker: string;
+  sentiment: any;
 }
 
 // Stock Data Types
