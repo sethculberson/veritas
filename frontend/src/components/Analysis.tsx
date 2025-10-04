@@ -4,9 +4,10 @@ import StockGraph from './StockGraph';
 
 interface AnalysisProps {
   cik: string;
+  companyName?: string;
 }
 
-const Analysis: React.FC<AnalysisProps> = ({ cik }) => {
+const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
   const [data, setData] = useState<GetInfoResponse>();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +43,7 @@ const Analysis: React.FC<AnalysisProps> = ({ cik }) => {
   }, [cik]); // Re-run effect if cik changes
 
   if (loading) {
-    return <div>Loading analysis for CIK: {cik}...</div>;
+    return <div>Loading analysis for {companyName || `CIK: ${cik}`}...</div>;
   }
 
   if (error) {
@@ -50,12 +51,12 @@ const Analysis: React.FC<AnalysisProps> = ({ cik }) => {
   }
 
   if (!data) {
-    return <div>No data available for CIK: {cik}</div>;
+    return <div>No data available for {companyName || `CIK: ${cik}`}</div>;
   }
 
   return (
     <div>
-      <h2>Analysis for CIK: {cik}</h2>
+      <h2>Analysis for {companyName || `CIK: ${cik}`}</h2>
       <StockGraph insiderData={data} />
       <div className="mt-8">
         <h3 className="text-xl font-bold mb-4">Insider Trading Summary</h3>
