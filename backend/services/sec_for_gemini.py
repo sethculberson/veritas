@@ -9,8 +9,8 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from sec_parser import parse_sec_filings
-import google.generativeai as genai
 from dotenv import load_dotenv
+from ai_tools import predict_impact_vector_search
 
 load_dotenv()
 
@@ -57,8 +57,6 @@ def analyze_with_gemini(sec_data):
         Dictionary with summary per document, sentiment, and links
     """
     try:
-        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
         document_analyses = []
         
@@ -78,56 +76,14 @@ def analyze_with_gemini(sec_data):
                                 linked_content.append(link_content)
                             else:
                                 linked_content.append(link_content[:6000])
+                    
                         
-                        all_content = document_content
-                        if linked_content:
-                            all_content += "\n\nLinked Documents:\n" + "\n".join(linked_content)
-                        
-                        # Different prompts based on form type
-                        if form_type == "10-K":
-                            prompt = f"""Analyze this comprehensive {form_type} SEC annual filing and provide exactly:
-                                1. A detailed summary in 5-10 sentences covering key business developments, financial performance, strategic initiatives, risks, and outlook
-                                2. Sentiment: positive/negative/neutral
+                        # Get vector search prediction using the document content
+                        vector_prediction = predict_impact_vector_search(document_content)
 
-                                Company: {sec_data.get('company', {}).get('name', 'Unknown')}
-                                Filing Type: {form_type}
-                                Document Content: {all_content}
-
-                                Format your response as:
-                                Summary: [5-10 sentences about key developments, financial highlights, strategic initiatives, and business outlook]
-                                Sentiment: [positive/negative/neutral]"""
-                        else:
-                            prompt = f"""Analyze this {form_type} SEC filing and provide exactly:
-                                1. One sentence summary of key developments and financial highlights
-                                2. Sentiment: positive/negative/neutral
-
-                                Company: {sec_data.get('company', {}).get('name', 'Unknown')}
-                                Filing Type: {form_type}
-                                Document Content: {all_content[:6000]}
-
-                                Format your response as:
-                                Summary: [one sentence about key developments]
-                                Sentiment: [positive/negative/neutral]"""
-                        
-                        response = model.generate_content(prompt)
-                        analysis_text = response.text.strip()
-                        
-                        summary_line = ""
-                        sentiment = "neutral"
-                        
-                        for line in analysis_text.split('\n'):
-                            if line.startswith('Summary:'):
-                                summary_line = line.replace('Summary:', '').strip()
-                            elif line.startswith('Sentiment:'):
-                                sentiment = line.replace('Sentiment:', '').strip().lower()
-                        
-                        if not summary_line:
-                            summary_line = analysis_text.split('\n')[0]
-                        
                         filing_info = {
                             "form": form_type,
-                            "summary": summary_line,
-                            "sentiment": sentiment,
+                            "vector_prediction": vector_prediction,
                             "url": filing_url,
                             "date": filing.get("filing_metadata", {}).get("filingDate", ""),
                             "links": filing.get("links", [])
