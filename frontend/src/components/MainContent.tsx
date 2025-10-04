@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import CompanyScoreCard from './CompanyScorecard';
+import {MOCK_HIGH_ANOMALY} from '../data/mockData.tsx'
+
 
 interface MainContentProps {
     onSearch: (query: string) => void,
@@ -48,13 +51,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
           </button>
         </div>
       </form>
-      
-      {/* Placeholder for future visualization/results */}
-      <div className="mt-16 p-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg max-w-3xl">
-        <p className="text-center text-gray-500 italic">
-          Search results and the Corporate Integrity Score will appear here.
-        </p>
-      </div>
+      <CompanyScoreCard company={MOCK_HIGH_ANOMALY}></CompanyScoreCard>
     </div>
   );
 };

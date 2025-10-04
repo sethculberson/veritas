@@ -1,10 +1,9 @@
-interface People {
+export interface People {
     name: string,
     integrityScore: number,
     title: string,
 }
-
-interface ApiResponse {
-    company: number,
+export interface ApiResponse {
+    overallScore: number,
     people: People[],
 }
