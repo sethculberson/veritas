@@ -1,23 +1,100 @@
-import { useState } from 'react'
-import CompanyScoreCard from './CompanyScorecard';
-import {MOCK_HIGH_ANOMALY} from '../data/mockData.tsx'
+import { useState, useEffect } from 'react';
 
+// --- Mock Data and Components to resolve errors ---
+
+// Mock data for the company scorecard
+const MOCK_HIGH_ANOMALY = {
+  companyName: "Stark Industries",
+  ticker: "STRK",
+  score: 95,
+  summary: "High number of unusually profitable trades by insiders.",
+};
+
+// Mock CompanyScoreCard component
+const CompanyScoreCard = ({ company }: { company: any }) => {
+  if (!company) return null;
+  return (
+    <div className="mt-10 p-6 bg-gray-50 rounded-lg shadow-md border border-gray-200">
+      <h3 className="text-2xl font-bold text-gray-800">{company.companyName} ({company.ticker})</h3>
+      <p className="text-lg text-gray-600 mt-2">Anomaly Score: <span className="font-bold text-red-600">{company.score}/100</span></p>
+      <p className="mt-4 text-gray-700">{company.summary}</p>
+    </div>
+  );
+};
+
+// --- Main Content Component ---
 
 interface MainContentProps {
-    onSearch: (query: string) => void,
+  onSearch: (query: string) => void;
+}
+
+// Type for the autofill suggestions from the API
+interface CompanySuggestion {
+  cik_str: number;
+  ticker: string;
+  title: string;
 }
 
 const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
-  // Specify that 'query' is a string
   const [query, setQuery] = useState<string>('');
+  const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
+
+  // Effect to fetch all companies once on component mount
+  useEffect(() => {
+    const fetchAllCompanies = async () => {
+      try {
+        const response = await fetch(`http://127.0.0.1:5000/autofill`);
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        const companiesArray = Object.values(data);
+        setAllCompanies(companiesArray);
+      } catch (error) {
+        console.error('Failed to fetch company list:', error);
+      }
+    };
+
+    fetchAllCompanies();
+  }, []); // Runs only once on mount
+
+  // Effect to filter suggestions from the main list when query changes
+  useEffect(() => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    if (allCompanies.length > 0) {
+      const lowercasedQuery = query.toLowerCase();
+      const filtered = allCompanies.filter(
+        company =>
+          company.title.toLowerCase().includes(lowercasedQuery) ||
+          company.ticker.toLowerCase().includes(lowercasedQuery)
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    }
+  }, [query, allCompanies]);
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
       onSearch(query.trim());
       setQuery(''); // Clear input after search
+      setShowSuggestions(false);
     }
     console.log("Pushed!", query);
+  };
+
+  const handleSuggestionClick = (suggestion: CompanySuggestion) => {
+    setQuery(suggestion.title);
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   return (
@@ -31,7 +108,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl">
+      <form onSubmit={handleSubmit} className="max-w-3xl relative">
         <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300">
           <input
             type="text"
@@ -39,8 +116,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
             placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => query.length >= 2 && setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} // Hide on blur with a small delay
             aria-label="Search company name or ticker"
             required
+            autoComplete="off" // Disable browser's default autofill
           />
           <button
             type="submit"
@@ -50,6 +130,22 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
             Analyze
           </button>
         </div>
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+            <ul className="max-h-60 overflow-y-auto">
+              {suggestions.map((suggestion, index) => (
+                <li
+                  key={index}
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-100"
+                  onMouseDown={() => handleSuggestionClick(suggestion)} // Use onMouseDown to prevent blur event from firing first
+                >
+                  <span className="font-medium text-gray-800">{suggestion.title}</span>
+                  <span className="ml-2 text-gray-500">{suggestion.ticker}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </form>
       <CompanyScoreCard company={MOCK_HIGH_ANOMALY}></CompanyScoreCard>
     </div>
