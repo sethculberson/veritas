@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import Sidebar from './components/Sidebar.jsx';
+import MainContent from './components/MainContent.jsx';
 
 function App() {
-
   return (
-    <>
-      <h1 className="m-4 bg-red-500">Veritas, Seth Thomas Fynn & Cole</h1>
-    </>
-  )
+    <div className="flex h-screen bg-gray-100">
+      <Sidebar/>
+      <MainContent/>
+    </div>
+  );
 }
 
-export default App
+export default App;
