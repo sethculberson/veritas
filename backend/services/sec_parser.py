@@ -18,6 +18,7 @@ class UniversalSECParser:
         """
         Get recent SEC filings for any company by CIK.
         """
+        cik = str(cik).replace('-', '').replace('CIK', '').strip().zfill(10)
         url = f"https://data.sec.gov/submissions/CIK{cik}.json"
 
         try:
