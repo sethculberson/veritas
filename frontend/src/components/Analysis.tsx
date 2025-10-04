@@ -41,10 +41,15 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
     };
 
     fetchData();
-  }, [cik]); // Re-run effect if cik changes
+  }, [cik]);
 
   if (loading) {
-    return <div>Loading integrity analysis for {companyName || `CIK: ${cik}`}...</div>; 
+    return (
+      <div className="flex flex-col items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">Loading integrity analysis for {companyName || `CIK: ${cik}`}...</p>
+      </div>
+    );
   }
 
   if (error) {
@@ -60,18 +65,8 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
       <h2>Analysis for CIK: {cik}</h2>
       <StockGraph insiderData={data} />
       <div className="mt-8">
-        <h3 className="text-xl font-bold mb-4">Insider Trading Summary</h3>
-        <p>Total Insiders: {data.total_insiders}</p>
         <InsiderList insiders={data.insiders} />
-        <details className="mt-4">
-          <summary className="cursor-pointer font-semibold">View Raw Data</summary>
-          <pre className="mt-2 p-4 bg-gray-100 rounded text-sm overflow-auto">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </details>
       </div>
-      <h2>Analysis for {companyName || `CIK: ${cik}`}</h2>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
 };

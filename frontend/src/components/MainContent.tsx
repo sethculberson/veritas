@@ -1,17 +1,7 @@
 import { useState, useEffect } from 'react';
 import Analysis from './Analysis'; // Import the Analysis component
 
-// --- Mock Data and Components to resolve errors ---
-
-// Mock data for the company scorecard
-const MOCK_HIGH_ANOMALY = {
-  companyName: "Stark Industries",
-  ticker: "STRK",
-  score: 95,
-  summary: "High number of unusually profitable trades by insiders.",
-};
-
-// Mock CompanyScoreCard component
+// --- Mock CompanyScoreCard component ---
 const CompanyScoreCard = ({ company }: { company: any }) => {
   if (!company) return null;
   return (
@@ -24,12 +14,10 @@ const CompanyScoreCard = ({ company }: { company: any }) => {
 };
 
 // --- Main Content Component ---
-
 interface MainContentProps {
   onSearch: (query: string) => void;
 }
 
-// Type for the autofill suggestions from the API
 interface CompanySuggestion {
   cik_str: number;
   ticker: string;
@@ -41,10 +29,10 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
-  const [selectedCik, setSelectedCik] = useState<string>(''); // State to hold the CIK for analysis
-  const [selectedCompanyName, setSelectedCompanyName] = useState<string>(''); // State to hold the company name
+  const [selectedCik, setSelectedCik] = useState<string>(''); 
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>(''); 
+  const [analyze, setAnalyze] = useState<boolean>(false); // NEW: Only run analysis when true
 
-  // --- LocalStorage and Event Handling for Recent Searches ---
   const saveSearch = (company: { cik: string; name: string }) => {
     const searches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
     const filteredSearches = searches.filter((s: any) => s.cik !== company.cik);
@@ -53,14 +41,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     window.dispatchEvent(new Event('searchesUpdated'));
   };
 
-  // Effect to fetch all companies once on component mount
   useEffect(() => {
     const fetchAllCompanies = async () => {
       try {
         const response = await fetch(`http://127.0.0.1:5000/autofill`);
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
+        if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         const companiesArray = Object.values(data) as CompanySuggestion[];
         setAllCompanies(companiesArray);
@@ -68,22 +53,19 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
         console.error('Failed to fetch company list:', error);
       }
     };
-
     fetchAllCompanies();
-  }, []); // Runs only once on mount
+  }, []);
 
-  // Effect to filter suggestions from the main list when query changes
   useEffect(() => {
     if (query.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-
     if (allCompanies.length > 0) {
       const lowercasedQuery = query.toLowerCase();
       const filtered = allCompanies.filter(
-        company =>
+        (company) =>
           company.title.toLowerCase().includes(lowercasedQuery) ||
           company.ticker.toLowerCase().includes(lowercasedQuery)
       );
@@ -92,14 +74,12 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     }
   }, [query, allCompanies]);
 
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowSuggestions(false);
-    if (query.trim()) {
-      onSearch(query.trim());
-    }
-    console.log("Pushed!", query);
+    if (!query.trim()) return;
+
+    onSearch(query.trim());
 
     const match = allCompanies.find(
       (company) =>
@@ -111,9 +91,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
       setSelectedCik(match.cik_str.toString());
       setSelectedCompanyName(match.title);
       saveSearch({ cik: match.cik_str.toString(), name: match.title });
+      setAnalyze(true); // ✅ only now trigger analysis
     } else {
       setSelectedCik('');
       setSelectedCompanyName('');
+      setAnalyze(false);
     }
   };
 
@@ -124,40 +106,43 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     saveSearch({ cik: suggestion.cik_str.toString(), name: suggestion.title });
     setSuggestions([]);
     setShowSuggestions(false);
+    setAnalyze(false); // ✅ don't auto-analyze on suggestion click
   };
 
   return (
-    <div className="flex-grow p-10 overflow-y-auto bg-white">
-      <header className="mb-10">
-        <h2 className="text-3xl font-extrabold text-gray-900 mb-2 flex items-center">
+    <div className="flex-grow flex flex-col items-center justify-start p-10 overflow-y-auto bg-white">
+      <header className="mb-10 text-center">
+        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">
           Analyze Corporate Trading
         </h2>
-        <p className="text-gray-600 text-lg">
+        <p className="text-gray-600 text-lg max-w-2xl mx-auto">
           Input a publicly traded company's name or ticker symbol to detect statistically suspicious insider trading patterns.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl relative">
-        <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300">
-          <input
-            type="text"
-            className="flex-grow p-3 text-lg border-none focus:ring-0 rounded-lg outline-none"
-            placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => query.length >= 2 && setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)} // Hide on blur with a small delay
-            aria-label="Search company name or ticker"
-            required
-            autoComplete="off" // Disable browser's default autofill
-          />
-          <button
-            type="submit"
-            className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300 shadow-md transform active:scale-95"
-            aria-label="Run analysis"
-          >
-            Analyze
-          </button>
+      <form onSubmit={handleSubmit} className="w-full max-w-2xl relative">
+        <div className="flex items-center justify-center">
+          <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300 w-full">
+            <input
+              type="text"
+              className="flex-grow p-3 text-lg border-none focus:ring-0 rounded-lg outline-none"
+              placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => query.length >= 2 && setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              aria-label="Search company name or ticker"
+              required
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300 shadow-md transform active:scale-95"
+              aria-label="Run analysis"
+            >
+              Analyze
+            </button>
+          </div>
         </div>
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
@@ -166,7 +151,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
                 <li
                   key={index}
                   className="px-4 py-2 cursor-pointer hover:bg-gray-100"
-                  onMouseDown={() => handleSuggestionClick(suggestion)} // Use onMouseDown to prevent blur event from firing first
+                  onMouseDown={() => handleSuggestionClick(suggestion)}
                 >
                   <span className="font-medium text-gray-800">{suggestion.title}</span>
                   <span className="ml-2 text-gray-500">{suggestion.ticker}</span>
@@ -176,11 +161,10 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
           </div>
         )}
       </form>
-      <CompanyScoreCard company={MOCK_HIGH_ANOMALY}></CompanyScoreCard>
 
-      {/* Conditionally render the Analysis component */}
-      <div className="mt-10">
-        {selectedCik && <Analysis cik={selectedCik} companyName={selectedCompanyName} />}
+      {/* ✅ Only render analysis if Analyze button was pressed */}
+      <div className="mt-10 w-full max-w-4xl">
+        {analyze && selectedCik && <Analysis cik={selectedCik} companyName={selectedCompanyName} />}
       </div>
     </div>
   );
