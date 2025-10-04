@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Analysis from './Analysis'; // Import the Analysis component
 
 // --- Mock Data and Components to resolve errors ---
 
@@ -40,6 +41,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
+  const [selectedCik, setSelectedCik] = useState<string>(''); // State to hold the CIK for analysis
 
   // Effect to fetch all companies once on component mount
   useEffect(() => {
@@ -83,16 +85,28 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
     if (query.trim()) {
       onSearch(query.trim());
-      setQuery(''); // Clear input after search
-      setShowSuggestions(false);
     }
     console.log("Pushed!", query);
+
+    const match = allCompanies.find(
+      (company) =>
+        company.title.toLowerCase() === query.toLowerCase() ||
+        company.ticker.toLowerCase() === query.toLowerCase()
+    );
+
+    if (match) {
+      setSelectedCik(match.cik_str.toString());
+    } else {
+      setSelectedCik('');
+    }
   };
 
   const handleSuggestionClick = (suggestion: CompanySuggestion) => {
     setQuery(suggestion.title);
+    setSelectedCik(suggestion.cik_str.toString());
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -148,6 +162,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
         )}
       </form>
       <CompanyScoreCard company={MOCK_HIGH_ANOMALY}></CompanyScoreCard>
+
+      {/* Conditionally render the Analysis component */}
+      <div className="mt-10">
+        {selectedCik && <Analysis cik={selectedCik} />}
+      </div>
     </div>
   );
 };
