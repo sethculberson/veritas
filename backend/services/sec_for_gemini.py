@@ -11,40 +11,59 @@ from bs4 import BeautifulSoup
 from sec_parser import parse_sec_filings
 from dotenv import load_dotenv
 from ai_tools import predict_impact_vector_search
-
+import re
 load_dotenv()
 
-def fetch_document_content(url, form_type=""):
+FINAL_STOP_PHRASES = ["SIGNATURE"] 
+# These are internal stops to prevent one Item's content from bleeding into the next Item.
+INTERNAL_STOP_PHRASES = ["EXHIBIT INDEX", "FINANCIAL STATEMENTS"]
+ITEM_HEADER_PATTERN = re.compile(r"Item\s\d\.\d{2}", re.IGNORECASE)
+
+def fetch_document_content(url: str):
     """
-    Fetch and parse content from SEC document URL
-    
+    Fetches an SEC 8-K filing and extracts the entire narrative block
+    following any 'Item X.XX' disclosure, stopping only at the next Item, 
+    the Exhibit Index, or the mandatory SIGNATURE block.
+
     Args:
-        url: SEC document URL
-        form_type: Type of SEC form (e.g., "10-K", "10-Q", "8-K")
-    
+        url: The direct link to the SEC 8-K filing.
+
     Returns:
-        Extracted text content (full content for 10-K, limited for others)
+        A dictionary mapping the Item heading (e.g., "Item 5.02") to its single, 
+        concatenated narrative text block.
     """
+    
     try:
+        # 1. Fetch the HTML Content with a detailed, polite User-Agent
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Veritas contact@example.com (Contact: yourname@yourdomain.com)',
+            'Accept-Encoding': 'gzip, deflate',
+            'Host': 'www.sec.gov'
         }
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status() 
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        text_content = soup.get_text()
-        lines = [line.strip() for line in text_content.splitlines() if line.strip()]
-        content = ' '.join(lines)
-        
-        # For 10-K forms, return full content without character limit
-        if form_type == "10-K":
-            return content
-        else:
-            return content[:8000]
-    except Exception as e:
-        return f"Failed to fetch content: {str(e)}"
+    except requests.exceptions.RequestException as e:
+        return {"ERROR": f"Failed to fetch content: {e}"}
+    extracted_data = []
+    # We iterate through all elements that are likely to contain structured text
+    # This loop tracks where we are in the document flow.
+    for tag in soup.find_all(lambda tag: tag.get_text(strip=True) and tag.name not in ['head', 'script', 'style']):
+        text = tag.get_text(strip=True)
+        start = "Item"
+        end = "SIGNATURE"
+        start_index = text.find(start)
+        narrative_start = start_index + len(start)
+        signature_index = text.find(end)
+        clean_narrative = re.sub(
+            r'\s+',                                      # Regex to find one or more whitespace characters
+            ' ',                                        # Replace them with a single space
+            text[narrative_start:signature_index]  # Slice the exact substring
+        ).strip() 
+        extracted_data.append(clean_narrative)
+    return extracted_data[0]
 
 def analyze_with_gemini(sec_data):
     """
@@ -56,57 +75,20 @@ def analyze_with_gemini(sec_data):
     Returns:
         Dictionary with summary per document, sentiment, and links
     """
-    try:
-        
-        document_analyses = []
-        
-        if "filings" in sec_data:
-            for form_type, filings in sec_data["filings"].items():
-                for filing in filings:
-                    filing_url = filing.get("filing_metadata", {}).get("url", "")
-                    
-                    if filing_url:
-                
-                        document_content = fetch_document_content(filing_url, form_type)
-                        
-                        linked_content = []
-                        for link in filing.get("links", [])[:3]:
-                            link_content = fetch_document_content(link, form_type)
-                            if form_type == "10-K":
-                                linked_content.append(link_content)
-                            else:
-                                linked_content.append(link_content[:6000])
-                    
-                        
-                        # Get vector search prediction using the document content
-                        vector_prediction = predict_impact_vector_search(document_content)
+    analysis = predict_impact_vector_search(sec_data)
 
-                        filing_info = {
-                            "form": form_type,
-                            "vector_prediction": vector_prediction,
-                            "url": filing_url,
-                            "date": filing.get("filing_metadata", {}).get("filingDate", ""),
-                            "links": filing.get("links", [])
-                        }
-                        
-                        document_analyses.append(filing_info)
-        
-        return {
-            "documents": document_analyses
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "documents": []
-        }
+    return {
+        "vector_prediction": analysis,
+        "summary": sec_data
+    }
 
-def get_sec_filings_json(cik, form_types=["8-K", "10-Q", "10-K"], limit=4):
+def get_sec_filings_json(cik, form_types=["8-K"], limit=4):
     """
     Get SEC filings for a company as JSON (for Gemini input)
     
     Args:
         cik: Company CIK number (string or int)
-        form_types: List of form types ["8-K", "10-Q", "10-K"]
+        form_types: List of form types ["8-K"]
         limit: Number of recent filings per type
     
     Returns:
@@ -118,27 +100,30 @@ def get_sec_filings_json(cik, form_types=["8-K", "10-Q", "10-K"], limit=4):
     except Exception as e:
         return json.dumps({"error": f"Failed to parse SEC filings: {e}"})
 
-def main():
+def getSentiment(cik):
     """Example usage. Will default to Apple if none provided.
 
     when in virtual environment
     python services/sec_for_gemini.py CIK
     """
-    import sys
-    
-    cik = sys.argv[1] if len(sys.argv) > 1 else "320193"
     
     try:
-        results = parse_sec_filings(str(cik), 2, ["8-K", "10-Q", "10-K"])
-        analysis = analyze_with_gemini(results)
-        
+        results = parse_sec_filings(str(cik), 2, ["8-K"])
+        anals = []
+        filings = results["filings"]
+        eightklist = filings["8-K"]
+        for item in eightklist:
+            words = fetch_document_content(item["filing_metadata"]["url"])
+            analysis = analyze_with_gemini(words)
+            dat = {
+                "vector_prediction":analysis,
+                "filing_date":item["filing_metadata"]["filingDate"],
+                "url":item["filing_metadata"]["url"]
+            }
+            anals.append(dat)
         output = {
-            "analysis": analysis
+            "analysis": anals
         }
-        
         print(json.dumps(output, ensure_ascii=False, indent=2))
     except Exception as e:
         print(json.dumps({"error": f"Failed to process: {e}"}))
-
-if __name__ == "__main__":
-    main()

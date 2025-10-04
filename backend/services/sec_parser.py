@@ -154,7 +154,7 @@ def main():
     # Get CIK from command line argument or default to Apple
     cik = sys.argv[1] if len(sys.argv) > 1 else "320193"
 
-    results = parse_sec_filings(cik, limit=5, form_types=["8-K", "10-Q", "10-K"])
+    results = parse_sec_filings(cik, limit=5, form_types=["8-K"])
     print(json.dumps(results, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
