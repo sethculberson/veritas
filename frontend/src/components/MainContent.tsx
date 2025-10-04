@@ -50,7 +50,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
           throw new Error('Network response was not ok');
         }
         const data = await response.json();
-        const companiesArray = Object.values(data);
+        const companiesArray = Object.values(data) as CompanySuggestion[];
         setAllCompanies(companiesArray);
       } catch (error) {
         console.error('Failed to fetch company list:', error);
