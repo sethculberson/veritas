@@ -1,7 +1,22 @@
-function MainContent() {
-    function def(){
-        console.log("yay!!")
+import { useState } from 'react'
+
+interface MainContentProps {
+    onSearch: (query: string) => void,
+}
+
+const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
+  // Specify that 'query' is a string
+  const [query, setQuery] = useState<string>('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      onSearch(query.trim());
+      setQuery(''); // Clear input after search
     }
+    console.log("Pushed!", query);
+  };
+
   return (
     <div className="flex-grow p-10 overflow-y-auto bg-white">
       <header className="mb-10">
@@ -12,14 +27,15 @@ function MainContent() {
           Input a publicly traded company's name or ticker symbol to detect statistically suspicious insider trading patterns.
         </p>
       </header>
-      <form onSubmit={def} className="max-w-3xl">
+
+      <form onSubmit={handleSubmit} className="max-w-3xl">
         <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300">
           <input
             type="text"
             className="flex-grow p-3 text-lg border-none focus:ring-0 rounded-lg outline-none"
             placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
-            value={0}
-            onChange={def}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             aria-label="Search company name or ticker"
             required
           />
@@ -33,6 +49,7 @@ function MainContent() {
         </div>
       </form>
       
+      {/* Placeholder for future visualization/results */}
       <div className="mt-16 p-6 bg-gray-50 border border-dashed border-gray-300 rounded-lg max-w-3xl">
         <p className="text-center text-gray-500 italic">
           Search results and the Corporate Integrity Score will appear here.
@@ -40,6 +57,6 @@ function MainContent() {
       </div>
     </div>
   );
-}
+};
 
 export default MainContent;
