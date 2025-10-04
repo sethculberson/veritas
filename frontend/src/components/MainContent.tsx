@@ -44,6 +44,15 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
   const [selectedCik, setSelectedCik] = useState<string>(''); // State to hold the CIK for analysis
   const [selectedCompanyName, setSelectedCompanyName] = useState<string>(''); // State to hold the company name
 
+  // --- LocalStorage and Event Handling for Recent Searches ---
+  const saveSearch = (company: { cik: string; name: string }) => {
+    const searches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+    const filteredSearches = searches.filter((s: any) => s.cik !== company.cik);
+    const newSearches = [company, ...filteredSearches].slice(0, 5);
+    localStorage.setItem('recentSearches', JSON.stringify(newSearches));
+    window.dispatchEvent(new Event('searchesUpdated'));
+  };
+
   // Effect to fetch all companies once on component mount
   useEffect(() => {
     const fetchAllCompanies = async () => {
@@ -101,6 +110,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     if (match) {
       setSelectedCik(match.cik_str.toString());
       setSelectedCompanyName(match.title);
+      saveSearch({ cik: match.cik_str.toString(), name: match.title });
     } else {
       setSelectedCik('');
       setSelectedCompanyName('');
@@ -111,6 +121,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     setQuery(suggestion.title);
     setSelectedCik(suggestion.cik_str.toString());
     setSelectedCompanyName(suggestion.title);
+    saveSearch({ cik: suggestion.cik_str.toString(), name: suggestion.title });
     setSuggestions([]);
     setShowSuggestions(false);
   };
