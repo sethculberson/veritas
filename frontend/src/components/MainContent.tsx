@@ -42,6 +42,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
   const [selectedCik, setSelectedCik] = useState<string>(''); // State to hold the CIK for analysis
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>(''); // State to hold the company name
 
   // Effect to fetch all companies once on component mount
   useEffect(() => {
@@ -99,14 +100,17 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
 
     if (match) {
       setSelectedCik(match.cik_str.toString());
+      setSelectedCompanyName(match.title);
     } else {
       setSelectedCik('');
+      setSelectedCompanyName('');
     }
   };
 
   const handleSuggestionClick = (suggestion: CompanySuggestion) => {
     setQuery(suggestion.title);
     setSelectedCik(suggestion.cik_str.toString());
+    setSelectedCompanyName(suggestion.title);
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -165,7 +169,7 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
 
       {/* Conditionally render the Analysis component */}
       <div className="mt-10">
-        {selectedCik && <Analysis cik={selectedCik} />}
+        {selectedCik && <Analysis cik={selectedCik} companyName={selectedCompanyName} />}
       </div>
     </div>
   );
