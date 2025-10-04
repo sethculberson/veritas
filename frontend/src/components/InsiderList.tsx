@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import { formatName } from "../lib/Trades";
+import PersonTrades from "./PersonTrades";
 
 // Define the interface for a single insider based on the data structure
 interface Insider {
@@ -17,27 +19,19 @@ interface InsiderListProps {
 }
 
 const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker }) => {
+  const [selectedPerson, setSelectedPerson] = useState<Insider | null>(null);
+
   if (!insiders || insiders.length === 0) return <p>No insider information available.</p>;
 
-  // Format name from "LAST FIRST MI" to "First Mi Last"
-  const formatName = (name: string) => {
-    // Add a guard clause to handle cases where name might be undefined or null.
-    if (!name) return "Unknown Name";
-
-    const parts = name.trim().split(/\s+/);
-    if (parts.length < 2) return name;
-
-    const last = parts[0];
-    const first = parts[1];
-    const middle = parts.slice(2).join(" ");
-
-    const formatPart = (part: string) =>
-      part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-
-    return middle
-      ? `${formatPart(first)} ${formatPart(middle)} ${formatPart(last)}`
-      : `${formatPart(first)} ${formatPart(last)}`;
-  };
+  // If a person is selected, show their trades
+  if (selectedPerson) {
+    return (
+      <PersonTrades 
+        person={selectedPerson} 
+        onBack={() => setSelectedPerson(null)}
+      />
+    );
+  }
 
   // Generate a professional-looking fallback avatar URL
   const getFallbackAvatarUrl = (name: string) => {
@@ -56,7 +50,7 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker
     for (let i = 0; i < formattedName.length; i++) {
       hash = formattedName.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const color = '6b7280'; 
+    const color = '6b7280';
     return `https://ui-avatars.com/api/?name=${initials}&background=${color}&color=fff&size=120&bold=true&length=2`;
   };
 
@@ -105,6 +99,7 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
               }}
+              onClick={() => setSelectedPerson(insider)}
             >
               <div
                 style={{
@@ -144,6 +139,14 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker
                 <div style={{ color: "#666", fontSize: "14px" }}>
                   {/* FIX: Use optional chaining to prevent crash if roles is undefined */}
                   {insider.roles?.join(", ") || "No roles assigned"}
+                </div>
+                <div style={{ 
+                  color: "#3b82f6", 
+                  fontSize: "12px", 
+                  marginTop: "4px",
+                  fontWeight: "500"
+                }}>
+                  Click to view {insider.trades?.length || 0} trades →
                 </div>
               </div>
             </div>

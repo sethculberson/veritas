@@ -6,10 +6,6 @@ current_date = datetime.now().strftime("%Y-%m-%d")
 # Get date one year ago
 start_date = (datetime.now().replace(year=datetime.now().year - 1)).strftime("%Y-%m-%d")
 
-print(current_date, start_date)
-
-stock_data = yf.download("AAPL", start=start_date, end=current_date)
-
 def get_stock_data(ticker, period="1y", interval="1d"):
     """
     Fetch stock data for a given ticker symbol over a specified period and interval.

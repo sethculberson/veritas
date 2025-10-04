@@ -23,8 +23,21 @@ def get_company_by_cik(cik: int):
 def get_company(cik):
     HEADERS = {"User-Agent": "Your Name your.email@example.com"}
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    resp = requests.get(url, headers=HEADERS)
-    data = resp.json()
+    
+    try:
+        resp = requests.get(url, headers=HEADERS)
+        resp.raise_for_status()  # This will raise an exception for 4xx and 5xx status codes
+        data = resp.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 429:
+            print(f"Rate limit hit while fetching company submissions for CIK {cik}: {e}")
+            # Re-raise the 429 error to be caught by the route handler
+            raise e
+        print(f"HTTP error fetching company submissions for CIK {cik}: {e}")
+        raise e
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching company submissions for CIK {cik}: {e}")
+        raise e
     
     form4_filings = []
     for filing, form in zip(data["filings"]["recent"]["accessionNumber"], 
@@ -43,6 +56,13 @@ def get_company(cik):
         try:
             file_resp = requests.get(f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/", headers=HEADERS, timeout=10)
             file_resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                print(f"Rate limit hit while fetching filing directory for {f}: {e}")
+                # Immediately raise the 429 error to stop processing and return to frontend
+                raise e
+            print(f"HTTP error fetching filing directory for {f}: {e}")
+            continue
         except requests.exceptions.RequestException as e:
             print(f"Error fetching filing directory for {f}: {e}")
             continue
@@ -78,6 +98,13 @@ def get_company(cik):
         try:
             xml_resp = requests.get(xml_full_url, headers=HEADERS, timeout=10)
             xml_resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                print(f"Rate limit hit while fetching XML file for {f}: {e}")
+                # Immediately raise the 429 error to stop processing and return to frontend
+                raise e
+            print(f"HTTP error fetching XML file for {f}: {e}")
+            continue
         except requests.exceptions.RequestException as e:
             print(f"Error fetching XML file for {f}: {e}")
             continue
@@ -237,30 +264,9 @@ def get_company(cik):
     # Convert sets to lists in the owner_info dictionary
     for owner_cik, info in owner_info.items():
         info['roles'] = list(info['roles'])
-        
-    ticker, _ = get_company_by_cik(int(cik))
-
-    # Get 1 year of stock data
-    stock_data_raw = get_stock_data(ticker, period="1y", interval="1d")
-
-    # Transform data for frontend consumption
-    formatted_stock_data = []
-    for entry in stock_data_raw:
-        if entry and 'Close' in entry:
-            # Convert timestamp to date string if needed
-            date_str = entry.get('Date', entry.get('Datetime', ''))
-            if hasattr(date_str, 'strftime'):
-                date_str = date_str.strftime('%Y-%m-%d')
-            
-            formatted_stock_data.append({
-                'date': str(date_str),
-                'price': round(float(entry['Close']), 2),
-            })
     
     # Convert the dictionary values to a list
     owner_info_list = list(owner_info.values())
-    owner_info_list.append(formatted_stock_data)
-    owner_info_list.append(ticker)
 
     return owner_info_list
 
@@ -277,9 +283,9 @@ def getInfo(CIK):
         
         # Get stock data using the existing stock data function
         # For now, always use AAPL ticker
-        # TODO: Map CIK to actual ticker symbol
-        ticker = "AAPL"
-        
+        ticker, _ = get_company_by_cik(int(CIK))
+        print(ticker)
+
         # Get 1 year of stock data
         stock_data_raw = get_stock_data(ticker, period="1y", interval="1d")
         
@@ -314,6 +320,15 @@ def getInfo(CIK):
         })
     
     except requests.exceptions.HTTPError as e:
+        # Check if it's a rate limit error from SEC
+        if hasattr(e, 'response') and e.response.status_code == 429:
+            return jsonify({
+                "success": False,
+                "error": "SEC API rate limit exceeded. Please wait and try again.",
+                "error_type": "rate_limit",
+                "cik": CIK
+            }), 429
+        
         return jsonify({
             "success": False,
             "error": f"HTTP error occurred: {str(e)}",

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Analysis from './Analysis'; // Import the Analysis component
+import SearchCache from '../lib/searchCache'; // Import the search cache utility
 
 // --- Mock CompanyScoreCard component ---
 const CompanyScoreCard = ({ company }: { company: any }) => {
@@ -16,6 +17,9 @@ const CompanyScoreCard = ({ company }: { company: any }) => {
 // --- Main Content Component ---
 interface MainContentProps {
   onSearch: (query: string) => void;
+  onSearchSelect?: (company: string, cik: string) => void;
+  selectedFromSidebar?: {company: string, cik: string} | null;
+  clearSelectedFromSidebar?: () => void;
 }
 
 interface CompanySuggestion {
@@ -24,20 +28,36 @@ interface CompanySuggestion {
   title: string;
 }
 
-const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
+const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, selectedFromSidebar, clearSelectedFromSidebar }) => {
   const [query, setQuery] = useState<string>('');
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
-  const [selectedCik, setSelectedCik] = useState<string>(''); 
-  const [selectedCompanyName, setSelectedCompanyName] = useState<string>(''); 
+  const [selectedCik, setSelectedCik] = useState<string>('');
+  const [selectedCompanyName, setSelectedCompanyName] = useState<string>('');
   const [analyze, setAnalyze] = useState<boolean>(false); // NEW: Only run analysis when true
+  const [skipSuggestions, setSkipSuggestions] = useState<boolean>(false); // Flag to skip suggestions
 
-  const saveSearch = (company: { cik: string; name: string }) => {
-    const searches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    const filteredSearches = searches.filter((s: any) => s.cik !== company.cik);
-    const newSearches = [company, ...filteredSearches].slice(0, 5);
-    localStorage.setItem('recentSearches', JSON.stringify(newSearches));
+  // Effect to handle sidebar selection
+  useEffect(() => {
+    if (selectedFromSidebar) {
+      setSelectedCik(selectedFromSidebar.cik);
+      setSelectedCompanyName(selectedFromSidebar.company);
+      setSkipSuggestions(true); // Skip suggestions for this query change
+      setQuery(selectedFromSidebar.company); // Update search input to show selected company
+      setAnalyze(true); // ✅ Trigger analysis for sidebar selections
+      setShowSuggestions(false); // ✅ Hide suggestions dropdown
+      // Clear the sidebar selection after processing
+      if (clearSelectedFromSidebar) {
+        clearSelectedFromSidebar();
+      }
+    }
+  }, [selectedFromSidebar, clearSelectedFromSidebar]);
+
+  // --- Search Cache Management ---
+  const saveSearch = (company: { cik: string; name: string; ticker: string }) => {
+    SearchCache.addSearch(company.name, company.ticker, company.cik);
+    // Trigger sidebar update through custom event
     window.dispatchEvent(new Event('searchesUpdated'));
   };
 
@@ -57,6 +77,12 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
   }, []);
 
   useEffect(() => {
+    // If we're skipping suggestions (from sidebar), reset the flag and don't show suggestions
+    if (skipSuggestions) {
+      setSkipSuggestions(false);
+      return;
+    }
+
     if (query.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -64,15 +90,18 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     }
     if (allCompanies.length > 0) {
       const lowercasedQuery = query.toLowerCase();
+
+      // Filter from all companies
       const filtered = allCompanies.filter(
         (company) =>
           company.title.toLowerCase().includes(lowercasedQuery) ||
           company.ticker.toLowerCase().includes(lowercasedQuery)
       );
+
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     }
-  }, [query, allCompanies]);
+  }, [query, allCompanies, skipSuggestions]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +119,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     if (match) {
       setSelectedCik(match.cik_str.toString());
       setSelectedCompanyName(match.title);
-      saveSearch({ cik: match.cik_str.toString(), name: match.title });
+      saveSearch({
+        cik: match.cik_str.toString(),
+        name: match.title,
+        ticker: match.ticker
+      });
       setAnalyze(true); // ✅ only now trigger analysis
     } else {
       setSelectedCik('');
@@ -103,7 +136,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
     setQuery(suggestion.title);
     setSelectedCik(suggestion.cik_str.toString());
     setSelectedCompanyName(suggestion.title);
-    saveSearch({ cik: suggestion.cik_str.toString(), name: suggestion.title });
+    saveSearch({
+      cik: suggestion.cik_str.toString(),
+      name: suggestion.title,
+      ticker: suggestion.ticker
+    });
     setSuggestions([]);
     setShowSuggestions(false);
     setAnalyze(false); // ✅ don't auto-analyze on suggestion click
@@ -120,29 +157,35 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch }) => {
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="w-full max-w-2xl relative">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300 w-full">
-            <input
-              type="text"
-              className="flex-grow p-3 text-lg border-none focus:ring-0 rounded-lg outline-none"
-              placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => query.length >= 2 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              aria-label="Search company name or ticker"
-              required
-              autoComplete="off"
-            />
-            <button
-              type="submit"
-              className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300 shadow-md transform active:scale-95"
-              aria-label="Run analysis"
-            >
-              Analyze
-            </button>
-          </div>
+      <form onSubmit={handleSubmit} className="max-w-3xl relative">
+        <div className="flex items-center space-x-3 bg-white border-2 border-gray-300 rounded-xl p-2 shadow-lg focus-within:border-blue-500 transition duration-300">
+          <input
+            type="text"
+            className="flex-grow p-3 text-lg border-none focus:ring-0 rounded-lg outline-none"
+            placeholder="e.g., Apple, JPMorgan, TSLA, AAPL..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => {
+              if (query.length >= 2) {
+                setShowSuggestions(true);
+              }
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowSuggestions(false);
+              }, 150); // Hide on blur with a small delay
+            }}
+            aria-label="Search company name or ticker"
+            required
+            autoComplete="off" // Disable browser's default autofill
+          />
+          <button
+            type="submit"
+            className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-300 shadow-md transform active:scale-95"
+            aria-label="Run analysis"
+          >
+            Analyze
+          </button>
         </div>
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">

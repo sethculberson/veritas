@@ -11,6 +11,7 @@ Tooltip,
 Legend,
 } from "chart.js";
 import { GetInfoResponse, Trade } from '../lib/types';
+import { formatName } from "../lib/Trades";
 
 ChartJS.register(
 CategoryScale,
@@ -35,6 +36,9 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
     const [hoveredTransactions, setHoveredTransactions] = useState<ChartTrade[]>([]);
     const [selectedInsider, setSelectedInsider] = useState<string>("all");
     const [tooltipPosition, setTooltipPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
+    const [currentTransactionIndex, setCurrentTransactionIndex] = useState<number>(0);
+    const [isTooltipHovered, setIsTooltipHovered] = useState<boolean>(false);
+    const hideTimeoutRef = React.useRef<number | null>(null);
 
     // Use stock data from insiderData instead of fetching separately
     const stockData = insiderData.stock_data || [];
@@ -45,7 +49,7 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
     // Convert insider trades to chart-friendly transactions with null checks
     const allTransactions: ChartTrade[] = (insiderData.insiders || []).flatMap(insider => 
         (insider.trades || [])
-            .filter(trade => trade.date) // Skip invalid trades
+            .filter(trade => trade.date)
             .map(trade => {
                 // Try to use the trade's price, or estimate from stock data
                 let effectivePrice = trade.price_per_share;
@@ -66,7 +70,7 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 
                 return {
                     ...trade,
-                    insider_name: insider.name,
+                    insider_name: formatName(insider.name),
                     effective_price: effectivePrice,
                     estimated_price: isEstimated,
                     total_value: trade.shares * effectivePrice,
@@ -94,7 +98,80 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
         : pastYearTransactions.filter(t => t.insider_name === selectedInsider);
 
     // Get unique insider names for the selector
-    const insiderNames = ["all", ...new Set((insiderData.insiders || []).map(insider => insider.name))];
+    const insiderNames = ["all", ...new Set((insiderData.insiders || []).map(insider => formatName(insider.name)))];
+    
+    // Navigation functions for multiple transactions
+    const nextTransaction = () => {
+        if (hoveredTransactions.length > 1) {
+            setCurrentTransactionIndex((prev) => 
+                prev < hoveredTransactions.length - 1 ? prev + 1 : 0
+            );
+        }
+    };
+    
+    const prevTransaction = () => {
+        if (hoveredTransactions.length > 1) {
+            setCurrentTransactionIndex((prev) => 
+                prev > 0 ? prev - 1 : hoveredTransactions.length - 1
+            );
+        }
+    };
+    
+    // Tooltip visibility management with delays
+    const showTooltip = (transactions: ChartTrade[]) => {
+        // Clear any pending hide timeout
+        if (hideTimeoutRef.current) {
+            clearTimeout(hideTimeoutRef.current);
+            hideTimeoutRef.current = null;
+        }
+        setHoveredTransactions(transactions);
+    };
+    
+    const hideTooltip = () => {
+        // Don't hide immediately if tooltip is being hovered
+        if (isTooltipHovered) {
+            return;
+        }
+        
+        // Add a small delay to allow mouse movement to tooltip
+        hideTimeoutRef.current = window.setTimeout(() => {
+            if (!isTooltipHovered) {
+                setHoveredTransactions([]);
+            }
+        }, 100);
+    };
+    
+    // Keyboard navigation
+    React.useEffect(() => {
+        const handleKeyPress = (event: KeyboardEvent) => {
+            if (hoveredTransactions.length > 1 && isTooltipHovered) {
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    nextTransaction();
+                } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    prevTransaction();
+                }
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [hoveredTransactions.length, isTooltipHovered]);
+    
+    // Cleanup timeout on unmount
+    React.useEffect(() => {
+        return () => {
+            if (hideTimeoutRef.current) {
+                clearTimeout(hideTimeoutRef.current);
+            }
+        };
+    }, []);
+    
+    // Reset transaction index when hovering new transactions
+    React.useEffect(() => {
+        setCurrentTransactionIndex(0);
+    }, [hoveredTransactions]);
 
     if (loading) {
         return (
@@ -154,54 +231,79 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 pointRadius: 0, // Hide points for the stock price line
                 pointHoverRadius: 0, // Hide points on hover too
             },
+            // Separate dataset for purchase transactions
             {
-            label: "Transactions",
-            data: stockData.map((entry) => {
-                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
-                return transactionsOnDate.length > 0 ? entry.price : null;
-            }),
-            backgroundColor: stockData.map((entry) => {
-                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
-                if (transactionsOnDate.length > 0) {
-                    // Use the color of the first transaction (or could be most common type)
-                    return transactionsOnDate[0].chart_type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
-                }
-                return "transparent";
-            }),
-            borderColor: stockData.map((entry) => {
-                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
-                if (transactionsOnDate.length > 0) {
-                    return transactionsOnDate[0].chart_type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
-                }
-                return "transparent";
-            }),
-            pointRadius: stockData.map((entry) => {
-                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
-                if (transactionsOnDate.length > 0) {
-                    // Base size of 6, plus 2 for each additional transaction
-                    return 6 + (transactionsOnDate.length - 1) * 1;
-                }
-                return 0;
-            }),
-            pointHoverRadius: stockData.map((entry) => {
-                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
-                if (transactionsOnDate.length > 0) {
-                    // Base hover size of 10, plus 2 for each additional transaction
-                    return 10 + (transactionsOnDate.length - 1) * 1;
-                }
-                return 0;
-            }),
-            showLine: false,
-        },
+                label: "Purchases",
+                data: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const buys = transactionsOnDate.filter(t => t.chart_type === "buy");
+                    return buys.length > 0 ? entry.price : null;
+                }),
+                backgroundColor: "rgba(34, 197, 94, 1)", // Green for purchases
+                borderColor: "rgba(34, 197, 94, 1)",
+                pointRadius: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const buys = transactionsOnDate.filter(t => t.chart_type === "buy");
+                    if (buys.length > 0) {
+                        // Base size of 6, plus 1 for each additional buy transaction
+                        return 6 + (buys.length - 1) * 1;
+                    }
+                    return 0;
+                }),
+                pointHoverRadius: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const buys = transactionsOnDate.filter(t => t.chart_type === "buy");
+                    if (buys.length > 0) {
+                        // Keep the same size on hover to prevent flickering
+                        return 6 + (buys.length - 1) * 1;
+                    }
+                    return 0;
+                }),
+                showLine: false,
+            },
+            // Separate dataset for sale transactions
+            {
+                label: "Sales",
+                data: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const sells = transactionsOnDate.filter(t => t.chart_type === "sold");
+                    return sells.length > 0 ? entry.price : null;
+                }),
+                backgroundColor: "rgba(239, 68, 68, 1)", // Red for sales
+                borderColor: "rgba(239, 68, 68, 1)",
+                pointRadius: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const sells = transactionsOnDate.filter(t => t.chart_type === "sold");
+                    if (sells.length > 0) {
+                        // Base size of 6, plus 1 for each additional sell transaction
+                        return 6 + (sells.length - 1) * 1;
+                    }
+                    return 0;
+                }),
+                pointHoverRadius: stockData.map((entry) => {
+                    const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                    const sells = transactionsOnDate.filter(t => t.chart_type === "sold");
+                    if (sells.length > 0) {
+                        // Keep the same size on hover to prevent flickering
+                        return 6 + (sells.length - 1) * 1;
+                    }
+                    return 0;
+                }),
+                showLine: false,
+            },
         ],
     };
 
     const options = {
         responsive: true,
+        interaction: {
+            mode: 'nearest' as const,
+            intersect: false,
+        },
         onHover: (event: any, activeElements: any) => {
             // Clear tooltip when not hovering over any elements
             if (activeElements.length === 0) {
-                setHoveredTransactions([]);
+                hideTooltip();
             }
         },
         plugins: {
@@ -212,13 +314,14 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     
                     // Hide tooltip when not hovering
                     if (tooltipModel.opacity === 0) {
-                        setHoveredTransactions([]);
+                        hideTooltip();
                         return;
                     }
                     
                     if (tooltipModel.dataPoints && tooltipModel.dataPoints.length > 0) {
                         const dataPoint = tooltipModel.dataPoints[0];
                         const originalDate = stockData[dataPoint.dataIndex]?.date;
+                        // Show all transactions for the date regardless of which dataset was hovered
                         const transactionsOnDate = displayedTransactions.filter(
                             (t: ChartTrade) => t.date === originalDate
                         );
@@ -228,14 +331,19 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                         const canvas = chart.canvas;
                         const rect = canvas.getBoundingClientRect();
                         
+                        // Get the actual pixel position of the data point for better alignment
+                        const hoveredPoint = tooltipModel.dataPoints[0];
+                        const meta = chart.getDatasetMeta(hoveredPoint.datasetIndex);
+                        const element = meta.data[hoveredPoint.dataIndex];
+                        
                         setTooltipPosition({
-                            x: tooltipModel.caretX,
-                            y: tooltipModel.caretY
+                            x: element.x,
+                            y: element.y
                         });
                         
-                        setHoveredTransactions(transactionsOnDate);
+                        showTooltip(transactionsOnDate);
                     } else {
-                        setHoveredTransactions([]);
+                        hideTooltip();
                     }
                 },
             },
@@ -265,7 +373,13 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
     return (
         <div 
             className="relative w-full max-w-4xl p-4"
-            onMouseLeave={() => setHoveredTransactions([])}
+            onMouseLeave={() => {
+                // Only hide if not hovering tooltip
+                if (!isTooltipHovered) {
+                    hideTooltip();
+                    setIsTooltipHovered(false);
+                }
+            }}
         >
             <h1 className="text-2xl font-bold mb-4">
                 {ticker} Stock Price History 1 year
@@ -290,44 +404,120 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 <p className="text-sm text-gray-500 mt-1">
                     Showing {displayedTransactions.length} trades
                 </p>
+                
+                {/* Color Legend */}
+                <div className="mt-3 flex items-center space-x-4 text-sm">
+                    <span className="text-gray-600 font-medium">Legend:</span>
+                    <div className="flex items-center space-x-1">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span className="text-gray-600">Purchases</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span className="text-gray-600">Sales</span>
+                    </div>
+                </div>
             </div>
             
             <Line data={data} options={options} />
             
             {hoveredTransactions.length > 0 && (
                 <div 
-                    className="absolute bg-white border border-gray-300 shadow-lg p-4 rounded-md min-w-sm max-w-md z-10 pointer-events-none"
+                    className="absolute bg-white border border-gray-300 shadow-lg p-4 rounded-md min-w-sm max-w-md z-10 pointer-events-auto"
                     style={{
-                        left: `${tooltipPosition.x + 10}px`,
-                        top: `${tooltipPosition.y - 50}px`,
+                        left: `${tooltipPosition.x + 15}px`,
+                        top: `${tooltipPosition.y - 45}px`,
                         transform: tooltipPosition.x > 500 ? 'translateX(-100%)' : 'none' // Flip to left if too close to right edge
                     }}
+                    onMouseEnter={() => {
+                        // Clear any pending hide timeout when entering tooltip
+                        if (hideTimeoutRef.current) {
+                            clearTimeout(hideTimeoutRef.current);
+                            hideTimeoutRef.current = null;
+                        }
+                        setIsTooltipHovered(true);
+                    }}
+                    onMouseLeave={() => {
+                        setIsTooltipHovered(false);
+                        hideTooltip();
+                    }}
                 >
-                    <h4 className="font-bold mb-2">
-                        Transaction Details {hoveredTransactions.length > 1 && `(${hoveredTransactions.length} trades)`}
-                    </h4>
-                    <div className={`${hoveredTransactions.length > 1 ? 'max-h-60 overflow-y-auto' : ''} space-y-3`}>
-                        {hoveredTransactions.map((transaction, index) => (
-                            <div key={index} className={`${index > 0 ? 'pt-3 border-t border-gray-200' : ''}`}>
-                                <p><strong>Insider:</strong> {transaction.insider_name}</p>
-                                <p><strong>Date:</strong> {transaction.date}</p>
-                                <p><strong>Action:</strong> {transaction.chart_type === "buy" ? "Bought" : "Sold"}</p>
-                                <p><strong>Shares:</strong> {transaction.shares.toLocaleString()}</p>
-                                <p>
-                                    <strong>Price per Share:</strong> ${transaction.effective_price.toFixed(2)}
-                                    {transaction.estimated_price && (
-                                        <span className="text-orange-600 text-sm ml-1">(estimated from closing price)</span>
-                                    )}
-                                </p>
-                                <p>
-                                    <strong>Total Value:</strong> ${transaction.total_value.toLocaleString()}
-                                    {transaction.estimated_price && (
-                                        <span className="text-orange-600 text-sm ml-1">(estimated)</span>
-                                    )}
-                                </p>
+                    {/* Arrow pointer to dot */}
+                    <div 
+                        className="absolute w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-300"
+                        style={{
+                            left: tooltipPosition.x > 500 ? 'calc(100% - 15px)' : '-15px',
+                            top: '40px'
+                        }}
+                    />
+                    <div 
+                        className="absolute w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white"
+                        style={{
+                            left: tooltipPosition.x > 500 ? 'calc(100% - 15px)' : '-15px',
+                            top: '39px'
+                        }}
+                    />
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-bold">
+                            {hoveredTransactions.length === 1 
+                                ? "Transaction Details" 
+                                : `${hoveredTransactions.length} Transactions on Same Day`
+                            }
+                        </h4>
+                        {hoveredTransactions.length > 1 && (
+                            <div className="flex items-center space-x-2 text-sm">
+                                <button 
+                                    onClick={prevTransaction}
+                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded"
+                                    title="Previous transaction (Arrow Left)"
+                                >
+                                    ←
+                                </button>
+                                <span className="text-gray-600">
+                                    {currentTransactionIndex + 1} of {hoveredTransactions.length}
+                                </span>
+                                <button 
+                                    onClick={nextTransaction}
+                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded"
+                                    title="Next transaction (Arrow Right)"
+                                >
+                                    →
+                                </button>
                             </div>
-                        ))}
+                        )}
                     </div>
+                    
+                    {/* Show summary for multiple transactions */}
+                    {hoveredTransactions.length > 1 && (
+                        <div className="mb-3 p-2 bg-gray-50 rounded text-sm">
+                            <p className="font-medium text-gray-700">Day Summary:</p>
+                            <div className="flex justify-between">
+                                <span>Purchases: {hoveredTransactions.filter(t => t.chart_type === "buy").length}</span>
+                                <span>Sales: {hoveredTransactions.filter(t => t.chart_type === "sold").length}</span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {hoveredTransactions[currentTransactionIndex] && (
+                        <div>
+                            <p><strong>Insider:</strong> {hoveredTransactions[currentTransactionIndex].insider_name}</p>
+                            <p><strong>Date:</strong> {hoveredTransactions[currentTransactionIndex].date}</p>
+                            <p><strong>Action:</strong> {hoveredTransactions[currentTransactionIndex].chart_type === "buy" ? "Bought" : "Sold"}</p>
+                            <p><strong>Shares:</strong> {hoveredTransactions[currentTransactionIndex].shares.toLocaleString()}</p>
+                            <p>
+                                <strong>Price per Share:</strong> ${hoveredTransactions[currentTransactionIndex].effective_price.toFixed(2)}
+                                {hoveredTransactions[currentTransactionIndex].estimated_price && (
+                                    <span className="text-orange-600 text-sm ml-1">(estimated from closing price)</span>
+                                )}
+                            </p>
+                            <p>
+                                <strong>Total Value:</strong> ${hoveredTransactions[currentTransactionIndex].total_value.toLocaleString()}
+                                {hoveredTransactions[currentTransactionIndex].estimated_price && (
+                                    <span className="text-orange-600 text-sm ml-1">(estimated)</span>
+                                )}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
