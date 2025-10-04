@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Line } from "react-chartjs-2";
 import {
 Chart as ChartJS,
@@ -10,6 +10,7 @@ Title,
 Tooltip,
 Legend,
 } from "chart.js";
+import { GetInfoResponse, Trade } from '../lib/types';
 
 ChartJS.register(
 CategoryScale,
@@ -21,67 +22,79 @@ Tooltip,
 Legend
 );
 
-interface Transaction {
-date: string;
-type: "buy" | "sell";
-amount: number;
+// Extended trade interface for chart display
+interface ChartTrade extends Trade {
+    insider_name: string;
+    total_value: number;
+    chart_type: "buy" | "sold";
+    estimated_price: boolean; // Whether the price was estimated from stock data
+    effective_price: number; // The actual price used (either trade price or estimated)
 }
 
-interface StockDataPoint {
-date: string;
-price: number;
-}
+function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
+    const [hoveredTransactions, setHoveredTransactions] = useState<ChartTrade[]>([]);
+    const [selectedInsider, setSelectedInsider] = useState<string>("all");
+    const [tooltipPosition, setTooltipPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
 
-interface ApiResponse {
-success: boolean;
-cik: string;
-ticker: string;
-data_points: number;
-stock_data: StockDataPoint[];
-error?: string;
-}
+    // Use stock data from insiderData instead of fetching separately
+    const stockData = insiderData.stock_data || [];
+    const ticker = insiderData.ticker || "Unknown";
+    const loading = false; // No loading since we already have the data
+    const error = null; // No error since we already have the data
 
-function StockGraph() {
-    const [hoveredTransaction, setHoveredTransaction] = useState<Transaction | null>(null);
-    const [stockData, setStockData] = useState<StockDataPoint[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [ticker, setTicker] = useState<string>("");
-
-    // Apple's CIK for now
-    const APPLE_CIK = "320193";
-
-    useEffect(() => {
-        const fetchStockData = async () => {
-            try {
-                setLoading(true);
-                const response = await fetch(`http://127.0.0.1:5000/getInfo/${APPLE_CIK}/graph`);
-                const data: ApiResponse = await response.json();
+    // Convert insider trades to chart-friendly transactions with null checks
+    const allTransactions: ChartTrade[] = (insiderData.insiders || []).flatMap(insider => 
+        (insider.trades || [])
+            .filter(trade => trade.date) // Skip invalid trades
+            .map(trade => {
+                // Try to use the trade's price, or estimate from stock data
+                let effectivePrice = trade.price_per_share;
+                let isEstimated = false;
                 
-                if (data.success) {
-                    setStockData(data.stock_data);
-                    setTicker(data.ticker);
-                    setError(null);
-                } else {
-                    setError(data.error || "Failed to fetch stock data");
+                if (!effectivePrice || effectivePrice === 0) {
+                    // Find the stock price for this date
+                    const stockPriceOnDate = stockData.find(stock => stock.date === trade.date);
+                    if (stockPriceOnDate) {
+                        effectivePrice = stockPriceOnDate.price;
+                        isEstimated = true;
+                        console.log(`Estimated price for ${trade.date}: $${effectivePrice}`);
+                    } else {
+                        effectivePrice = 0;
+                        console.log(`No stock price found for ${trade.date}`);
+                    }
                 }
-            } catch (err) {
-                setError("Error connecting to server");
-                console.error("Error fetching stock data:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
+                
+                return {
+                    ...trade,
+                    insider_name: insider.name,
+                    effective_price: effectivePrice,
+                    estimated_price: isEstimated,
+                    total_value: trade.shares * effectivePrice,
+                    chart_type: (trade.acquired_disposed === 'A' ? "buy" : "sold") as "buy" | "sold",
+                };
+            })
+    );
+    
+    // Log summary of price estimation
+    const estimatedCount = allTransactions.filter(t => t.estimated_price).length;
+    const totalCount = allTransactions.length;
+    console.log(`Price estimation: ${estimatedCount}/${totalCount} transactions used estimated prices`);
+    
+    // Filter transactions - first by date (past year), then by selected insider
+    const Today = new Date();
+    const oneYearAgo = Today.setFullYear(Today.getFullYear() - 1);
+    const pastYearTransactions = allTransactions.filter(t => {
+        const transactionDate = new Date(t.date);
 
-        fetchStockData();
-    }, []);
+        return transactionDate.getTime() >= oneYearAgo;
+    });
+    
+    const displayedTransactions = selectedInsider === "all" 
+        ? pastYearTransactions 
+        : pastYearTransactions.filter(t => t.insider_name === selectedInsider);
 
-    // Mock transactions for now (can be replaced with real data later)
-    // Using dates that are more likely to be in the stock data range
-    const mockTransactions: Transaction[] = [
-        { date: "2024-12-15", type: "buy", amount: 500 },
-        { date: "2025-08-15", type: "sell", amount: 300 },
-    ];
+    // Get unique insider names for the selector
+    const insiderNames = ["all", ...new Set((insiderData.insiders || []).map(insider => insider.name))];
 
     if (loading) {
         return (
@@ -142,35 +155,44 @@ function StockGraph() {
                 pointHoverRadius: 0, // Hide points on hover too
             },
             {
-                label: "Transactions",
-                data: stockData.map((entry) => {
-                    const transaction = mockTransactions.find((t) => t.date === entry.date);
-                    return transaction ? entry.price : null;
-                }),
-                backgroundColor: stockData.map((entry) => {
-                    const transaction = mockTransactions.find((t) => t.date === entry.date);
-                    if (transaction) {
-                        return transaction.type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
-                    }
-                    return "transparent";
-                }),
-                borderColor: stockData.map((entry) => {
-                    const transaction = mockTransactions.find((t) => t.date === entry.date);
-                    if (transaction) {
-                        return transaction.type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
-                    }
-                    return "transparent";
-                }),
-                pointRadius: stockData.map((entry) => {
-                    const transaction = mockTransactions.find((t) => t.date === entry.date);
-                    return transaction ? 6 : 0; // Only show points for transactions
-                }),
-                pointHoverRadius: stockData.map((entry) => {
-                    const transaction = mockTransactions.find((t) => t.date === entry.date);
-                    return transaction ? 16 : 0;
-                }),
-                showLine: false,
-            },
+            label: "Transactions",
+            data: stockData.map((entry) => {
+                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                return transactionsOnDate.length > 0 ? entry.price : null;
+            }),
+            backgroundColor: stockData.map((entry) => {
+                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                if (transactionsOnDate.length > 0) {
+                    // Use the color of the first transaction (or could be most common type)
+                    return transactionsOnDate[0].chart_type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
+                }
+                return "transparent";
+            }),
+            borderColor: stockData.map((entry) => {
+                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                if (transactionsOnDate.length > 0) {
+                    return transactionsOnDate[0].chart_type === "buy" ? "rgba(34, 197, 94, 1)" : "rgba(239, 68, 68, 1)";
+                }
+                return "transparent";
+            }),
+            pointRadius: stockData.map((entry) => {
+                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                if (transactionsOnDate.length > 0) {
+                    // Base size of 6, plus 2 for each additional transaction
+                    return 6 + (transactionsOnDate.length - 1) * 1;
+                }
+                return 0;
+            }),
+            pointHoverRadius: stockData.map((entry) => {
+                const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
+                if (transactionsOnDate.length > 0) {
+                    // Base hover size of 10, plus 2 for each additional transaction
+                    return 10 + (transactionsOnDate.length - 1) * 1;
+                }
+                return 0;
+            }),
+            showLine: false,
+        },
         ],
     };
 
@@ -179,7 +201,7 @@ function StockGraph() {
         onHover: (event: any, activeElements: any) => {
             // Clear tooltip when not hovering over any elements
             if (activeElements.length === 0) {
-                setHoveredTransaction(null);
+                setHoveredTransactions([]);
             }
         },
         plugins: {
@@ -190,19 +212,30 @@ function StockGraph() {
                     
                     // Hide tooltip when not hovering
                     if (tooltipModel.opacity === 0) {
-                        setHoveredTransaction(null);
+                        setHoveredTransactions([]);
                         return;
                     }
                     
                     if (tooltipModel.dataPoints && tooltipModel.dataPoints.length > 0) {
                         const dataPoint = tooltipModel.dataPoints[0];
                         const originalDate = stockData[dataPoint.dataIndex]?.date;
-                        const transaction = mockTransactions.find(
-                            (t) => t.date === originalDate
+                        const transactionsOnDate = displayedTransactions.filter(
+                            (t: ChartTrade) => t.date === originalDate
                         );
-                        setHoveredTransaction(transaction || null);
+                        
+                        // Set tooltip position relative to the chart
+                        const chart = context.chart;
+                        const canvas = chart.canvas;
+                        const rect = canvas.getBoundingClientRect();
+                        
+                        setTooltipPosition({
+                            x: tooltipModel.caretX,
+                            y: tooltipModel.caretY
+                        });
+                        
+                        setHoveredTransactions(transactionsOnDate);
                     } else {
-                        setHoveredTransaction(null);
+                        setHoveredTransactions([]);
                     }
                 },
             },
@@ -232,21 +265,69 @@ function StockGraph() {
     return (
         <div 
             className="relative w-full max-w-4xl p-4"
-            onMouseLeave={() => setHoveredTransaction(null)}
+            onMouseLeave={() => setHoveredTransactions([])}
         >
             <h1 className="text-2xl font-bold mb-4">
                 {ticker} Stock Price History 1 year
             </h1>
+            
+            <div className="mb-4">
+                <label htmlFor="insider-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Filter by Insider:
+                </label>
+                <select
+                    id="insider-select"
+                    value={selectedInsider}
+                    onChange={(e) => setSelectedInsider(e.target.value)}
+                    className="block w-48 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                    {insiderNames.map(name => (
+                        <option key={name} value={name}>
+                            {name === "all" ? "All Insiders" : name}
+                        </option>
+                    ))}
+                </select>
+                <p className="text-sm text-gray-500 mt-1">
+                    Showing {displayedTransactions.length} trades
+                </p>
+            </div>
+            
             <Line data={data} options={options} />
-            {hoveredTransaction && (
-                <div className="absolute top-0 left-0 bg-white border border-gray-300 shadow-lg p-4 rounded-md">
-                    <p>
-                        <strong>{hoveredTransaction.type === "buy" ? "Bought" : "Sold"}:</strong>{" "}
-                        {hoveredTransaction.amount} shares
-                    </p>
-                    <p>
-                        <strong>Date:</strong> {hoveredTransaction.date}
-                    </p>
+            
+            {hoveredTransactions.length > 0 && (
+                <div 
+                    className="absolute bg-white border border-gray-300 shadow-lg p-4 rounded-md min-w-sm max-w-md z-10 pointer-events-none"
+                    style={{
+                        left: `${tooltipPosition.x + 10}px`,
+                        top: `${tooltipPosition.y - 50}px`,
+                        transform: tooltipPosition.x > 500 ? 'translateX(-100%)' : 'none' // Flip to left if too close to right edge
+                    }}
+                >
+                    <h4 className="font-bold mb-2">
+                        Transaction Details {hoveredTransactions.length > 1 && `(${hoveredTransactions.length} trades)`}
+                    </h4>
+                    <div className={`${hoveredTransactions.length > 1 ? 'max-h-60 overflow-y-auto' : ''} space-y-3`}>
+                        {hoveredTransactions.map((transaction, index) => (
+                            <div key={index} className={`${index > 0 ? 'pt-3 border-t border-gray-200' : ''}`}>
+                                <p><strong>Insider:</strong> {transaction.insider_name}</p>
+                                <p><strong>Date:</strong> {transaction.date}</p>
+                                <p><strong>Action:</strong> {transaction.chart_type === "buy" ? "Bought" : "Sold"}</p>
+                                <p><strong>Shares:</strong> {transaction.shares.toLocaleString()}</p>
+                                <p>
+                                    <strong>Price per Share:</strong> ${transaction.effective_price.toFixed(2)}
+                                    {transaction.estimated_price && (
+                                        <span className="text-orange-600 text-sm ml-1">(estimated from closing price)</span>
+                                    )}
+                                </p>
+                                <p>
+                                    <strong>Total Value:</strong> ${transaction.total_value.toLocaleString()}
+                                    {transaction.estimated_price && (
+                                        <span className="text-orange-600 text-sm ml-1">(estimated)</span>
+                                    )}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

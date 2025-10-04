@@ -1,9 +1,24 @@
 from flask import Blueprint, jsonify
 import requests
 from bs4 import BeautifulSoup
+import sys
+import os
+
+# Add the services directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services'))
+from services.stockPrice import get_stock_data
+from routes.autofill import get_stock_tickers
 
 # create a Blueprint (name, import_name)
 getInfo_bp = Blueprint('getInfo', __name__)
+
+def get_company_by_cik(cik: int):
+    data = get_stock_tickers()
+
+    for entry in data.values():
+        if entry["cik_str"] == cik:
+            return entry["ticker"], entry["title"]
+    return None, None
 
 def get_company(cik):
     HEADERS = {"User-Agent": "Your Name your.email@example.com"}
@@ -222,9 +237,30 @@ def get_company(cik):
     # Convert sets to lists in the owner_info dictionary
     for owner_cik, info in owner_info.items():
         info['roles'] = list(info['roles'])
+        
+    ticker, _ = get_company_by_cik(int(cik))
+
+    # Get 1 year of stock data
+    stock_data_raw = get_stock_data(ticker, period="1y", interval="1d")
+
+    # Transform data for frontend consumption
+    formatted_stock_data = []
+    for entry in stock_data_raw:
+        if entry and 'Close' in entry:
+            # Convert timestamp to date string if needed
+            date_str = entry.get('Date', entry.get('Datetime', ''))
+            if hasattr(date_str, 'strftime'):
+                date_str = date_str.strftime('%Y-%m-%d')
+            
+            formatted_stock_data.append({
+                'date': str(date_str),
+                'price': round(float(entry['Close']), 2),
+            })
     
     # Convert the dictionary values to a list
     owner_info_list = list(owner_info.values())
+    owner_info_list.append(formatted_stock_data)
+    owner_info_list.append(ticker)
 
     return owner_info_list
 
@@ -239,13 +275,42 @@ def getInfo(CIK):
         # Call the get_company function to fetch insider trading data
         owner_data = get_company(padded_cik)
         
-        # Return the data as JSON
+        # Get stock data using the existing stock data function
+        # For now, always use AAPL ticker
+        # TODO: Map CIK to actual ticker symbol
+        ticker = "AAPL"
+        
+        # Get 1 year of stock data
+        stock_data_raw = get_stock_data(ticker, period="1y", interval="1d")
+        
+        # Transform data for frontend consumption
+        formatted_stock_data = []
+        for entry in stock_data_raw:
+            if entry and 'Close' in entry:
+                # Convert timestamp to date string if needed
+                date_str = entry.get('Date', entry.get('Datetime', ''))
+                if hasattr(date_str, 'strftime'):
+                    date_str = date_str.strftime('%Y-%m-%d')
+                
+                formatted_stock_data.append({
+                    'date': str(date_str),
+                    'price': round(float(entry['Close']), 2),
+                    'open': round(float(entry.get('Open', 0)), 2),
+                    'high': round(float(entry.get('High', 0)), 2),
+                    'low': round(float(entry.get('Low', 0)), 2),
+                    'volume': int(entry.get('Volume', 0))
+                })
+        
+        # Return the combined data as JSON
         return jsonify({
             "success": True,
             "cik": CIK,
             "padded_cik": padded_cik,
             "total_insiders": len(owner_data),
-            "insiders": owner_data
+            "insiders": owner_data,
+            "stock_data": formatted_stock_data,
+            "ticker": ticker,
+            "data_points": len(formatted_stock_data)
         })
     
     except requests.exceptions.HTTPError as e:
