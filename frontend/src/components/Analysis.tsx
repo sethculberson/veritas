@@ -3,7 +3,7 @@ import { GetInfoResponse } from '../lib/types';
 import StockGraph from './StockGraph';
 import InsiderList from './InsiderList';
 import SearchCache from '../lib/searchCache';
-import { calculateInsiderIntegrity } from '../lib/integrityCalculator';
+import { calculateInsiderIntegrity, calculateCompanyIntegrityScore, getIntegrityScoreColor } from '../lib/integrityCalculator';
 import FilingAnalysisSummary from './FilingAnalysisSummary';
 
 interface AnalysisProps {
@@ -138,6 +138,7 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplet
 
   // Calculate integrity scores for insiders based on sentiment analysis
   const insidersWithIntegrity = calculateInsiderIntegrity(data.insiders, data.sentiment);
+  const companyIntegrityScore = calculateCompanyIntegrityScore(insidersWithIntegrity);
 
   console.log("sentiment", data.sentiment)
 
@@ -145,11 +146,25 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplet
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Analysis for CIK: {cik}</h2>
-        {fromCache && (
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-            📦 Cached Data
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Company Integrity Score */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Company Integrity:</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+              companyIntegrityScore >= 80 ? 'bg-green-100 text-green-800' :
+              companyIntegrityScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
+              companyIntegrityScore >= 40 ? 'bg-orange-100 text-orange-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {companyIntegrityScore}/100
+            </span>
+          </div>
+          {fromCache && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+              📦 Cached Data
+            </span>
+          )}
+        </div>
       </div>
       <StockGraph insiderData={data} />
       <div className="mt-8">

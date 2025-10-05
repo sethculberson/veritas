@@ -380,9 +380,11 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 }
             }}
         >
-            <h1 className="text-2xl font-bold mb-4">
-                {ticker} Stock Price History 1 year
-            </h1>
+            <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold">
+                    {ticker} Stock Price History 1 year
+                </h1>
+            </div>
             
             <div className="mb-4">
                 <label htmlFor="insider-select" className="block text-sm font-medium text-gray-700 mb-2">

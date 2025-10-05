@@ -15,13 +15,57 @@ interface IntegrityAnalysis {
   totalPenalty: number;
 }
 
-// Penalty mapping based on confidence levels
-const CONFIDENCE_PENALTIES: Record<string, number> = {
-  "High": 100,
-  "Medium": 50,
-  "Moderate": 50, // Same as Medium
-  "Low": 10
+// Base penalty mapping based on confidence levels (will be scaled by distance)
+const BASE_CONFIDENCE_PENALTIES: Record<string, number> = {
+  "High": 20,
+  "Moderate": 15,
+  "Low": 8
 };
+
+/**
+ * Calculate distance-based penalty multiplier
+ * Closer to filing date = higher penalty
+ * @param daysBeforeFiling Number of days between trade and filing
+ * @returns Multiplier between 0.3 and 1.0
+ */
+function getDistanceMultiplier(daysBeforeFiling: number): number {
+  // Maximum penalty for trades 1-3 days before filing
+  if (daysBeforeFiling <= 3) return 1.0;
+  
+  // Linear decrease from 1.0 to 0.3 over 30 days
+  // 3 days = 1.0, 30 days = 0.3
+  const multiplier = 1.0 - ((daysBeforeFiling - 3) * 0.7) / 27;
+  return Math.max(0.3, Math.min(1.0, multiplier));
+}
+
+/**
+ * Calculate integrity score for a single trade
+ * @param trade The trade to analyze
+ * @param sentimentData Array of filing analyses
+ * @returns Integrity score for this trade (0-100, where 100 is perfect)
+ */
+function calculateTradeIntegrityScore(
+  trade: Trade,
+  sentimentData: FilingAnalysis[]
+): number {
+  const suspiciousActivities = analyzeTradeForSuspiciousActivity(trade, sentimentData);
+  
+  if (suspiciousActivities.length === 0) {
+    return 100; // Perfect score for non-suspicious trades
+  }
+  
+  // Calculate total penalty for this trade
+  let totalPenalty = 0;
+  suspiciousActivities.forEach(activity => {
+    const basePenalty = BASE_CONFIDENCE_PENALTIES[activity.filing.vector_prediction.vector_prediction.confidence] || 8;
+    const distanceMultiplier = getDistanceMultiplier(activity.daysBeforeFiling);
+    const adjustedPenalty = basePenalty * distanceMultiplier;
+    totalPenalty += adjustedPenalty;
+  });
+  
+  // Return score (100 - penalty, minimum 0)
+  return Math.max(0, 100 - totalPenalty);
+}
 
 /**
  * Analyze a single trade for suspicious patterns
@@ -61,7 +105,10 @@ export function analyzeTradeForSuspiciousActivity(
       }
       
       if (isSuspicious) {
-        const penalty = CONFIDENCE_PENALTIES[confidence];
+        const basePenalty = BASE_CONFIDENCE_PENALTIES[confidence] || 8;
+        const distanceMultiplier = getDistanceMultiplier(daysDifference);
+        const penalty = basePenalty * distanceMultiplier;
+        
         suspiciousActivities.push({
           trade,
           filing,
@@ -88,22 +135,19 @@ export function calculateInsiderIntegrity(
 ): InsiderInfo[] {
   
   return insiders.map(insider => {
-    let totalPenalty = 0;
-    const suspiciousTrades: SuspiciousTrade[] = [];
+    // Calculate integrity score for each trade
+    const tradeScores = insider.trades.map(trade => 
+      calculateTradeIntegrityScore(trade, sentimentData)
+    );
     
-    // Check each trade against sentiment predictions
-    insider.trades.forEach(trade => {
-      const tradeAnalysis = analyzeTradeForSuspiciousActivity(trade, sentimentData);
-      suspiciousTrades.push(...tradeAnalysis);
-      totalPenalty += tradeAnalysis.reduce((sum, analysis) => sum + analysis.penalty, 0);
-    });
-    
-    // Calculate final integrity score (starting from 100, subtracting penalties)
-    const integrityScore = Math.max(0, 100 - totalPenalty);
+    // Calculate average integrity score for this insider
+    const integrityScore = tradeScores.length > 0 
+      ? Math.round(tradeScores.reduce((sum, score) => sum + score, 0) / tradeScores.length)
+      : 100; // Perfect score if no trades
     
     // Log for debugging
-    if (suspiciousTrades.length > 0) {
-      console.log(`Insider ${insider.name} has ${suspiciousTrades.length} suspicious trades with total penalty of ${totalPenalty}. Final integrity score: ${integrityScore}`);
+    if (tradeScores.some(score => score < 100)) {
+      console.log(`Insider ${insider.name}: ${tradeScores.length} trades, scores: [${tradeScores.join(', ')}], average: ${integrityScore}`);
     }
     
     return {
@@ -111,6 +155,27 @@ export function calculateInsiderIntegrity(
       integrityScore
     };
   });
+}
+
+/**
+ * Calculate company-wide integrity score
+ * @param insiders Array of insiders with calculated integrity scores
+ * @returns Company integrity score (0-100)
+ */
+export function calculateCompanyIntegrityScore(insiders: InsiderInfo[]): number {
+  const insidersWithScores = insiders.filter(insider => 
+    typeof insider.integrityScore === 'number'
+  );
+  
+  if (insidersWithScores.length === 0) {
+    return 100; // Perfect score if no insiders have scores
+  }
+  
+  const totalScore = insidersWithScores.reduce((sum, insider) => 
+    sum + (insider.integrityScore || 100), 0
+  );
+  
+  return Math.round(totalScore / insidersWithScores.length);
 }
 
 /**
@@ -148,10 +213,10 @@ export function getInsiderIntegrityAnalysis(
  * @returns CSS class for color coding
  */
 export function getIntegrityScoreColor(score: number): string {
-  if (score >= 80) return "text-green-600";
-  if (score >= 60) return "text-yellow-600"; 
-  if (score >= 40) return "text-orange-600";
-  return "text-red-600";
+  if (score >= 80) return "bg-green-600";
+  if (score >= 60) return "bg-yellow-600"; 
+  if (score >= 40) return "bg-orange-600";
+  return "bg-red-600";
 }
 
 /**
