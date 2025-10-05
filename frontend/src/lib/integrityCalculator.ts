@@ -17,8 +17,8 @@ interface IntegrityAnalysis {
 
 // Base penalty mapping based on confidence levels (will be scaled by distance)
 const BASE_CONFIDENCE_PENALTIES: Record<string, number> = {
-  "High": 20,
-  "Moderate": 15,
+  "High": 50,
+  "Moderate": 20,
   "Low": 8
 };
 
@@ -30,13 +30,12 @@ const BASE_CONFIDENCE_PENALTIES: Record<string, number> = {
  */
 function getDistanceMultiplier(daysBeforeFiling: number): number {
   // Maximum penalty for trades 1-3 days before filing
-  if (daysBeforeFiling <= 1) return 1.5;
-  if (daysBeforeFiling <= 3) return 1.2;
+  if (daysBeforeFiling <= 3) return 2.0;
   
   // Exponential decay
   const k = 0.12 ; // decay constant
-  const multiplier = Math.exp(-k * (daysBeforeFiling - 3));
-  return Math.max(0.1, Math.min(1.2, multiplier));
+  const multiplier = (Math.exp(-k * (daysBeforeFiling - 3)))*2.0;
+  return Math.max(0.1, Math.min(2.0, multiplier));
 }
 
 /**
