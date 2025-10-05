@@ -21,7 +21,6 @@ function App() {
       <Sidebar onSearchSelect={handleSidebarSearchSelect}/>
       <MainContent 
         onSearch={handleSearchSubmit} 
-        onSearchSelect={handleSidebarSearchSelect}
         selectedFromSidebar={selectedFromSidebar}
         clearSelectedFromSidebar={() => setSelectedFromSidebar(null)}
       />
