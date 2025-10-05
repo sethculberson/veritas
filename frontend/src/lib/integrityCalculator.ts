@@ -223,9 +223,9 @@ export function getInsiderIntegrityAnalysis(
  * @returns CSS class for color coding
  */
 export function getIntegrityScoreColor(score: number): string {
-  if (score >= 80) return "bg-green-600";
-  if (score >= 60) return "bg-yellow-600"; 
-  if (score >= 40) return "bg-orange-600";
+  if (score >= 85) return "bg-green-600";
+  if (score >= 70) return "bg-yellow-600"; 
+  if (score >= 50) return "bg-orange-600";
   return "bg-red-600";
 }
 
@@ -235,9 +235,9 @@ export function getIntegrityScoreColor(score: number): string {
  * @returns Human readable label
  */
 export function getIntegrityScoreLabel(score: number): string {
-  if (score >= 80) return "High Integrity";
-  if (score >= 60) return "Medium Integrity";
-  if (score >= 40) return "Low Integrity";
+  if (score >= 85) return "High Integrity";
+  if (score >= 70) return "Medium Integrity";
+  if (score >= 50) return "Low Integrity";
   return "Very Low Integrity";
 }
 
