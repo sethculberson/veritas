@@ -3,13 +3,15 @@ import { GetInfoResponse } from '../lib/types';
 import StockGraph from './StockGraph';
 import InsiderList from './InsiderList';
 import SearchCache from '../lib/searchCache';
+import { calculateInsiderIntegrity } from '../lib/integrityCalculator';
 
 interface AnalysisProps {
   cik: string;
   companyName?: string;
+  onAnalysisComplete?: (company: { cik: string; name: string; ticker: string }) => void;
 }
 
-const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
+const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplete }) => {
   const [data, setData] = useState<GetInfoResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,15 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
         setData(cachedData);
         setFromCache(true);
         setLoading(false);
+        
+        // Call completion callback for cached data as well
+        if (onAnalysisComplete && cachedData.ticker) {
+          onAnalysisComplete({
+            cik: cik,
+            name: companyName || cachedData.ticker,
+            ticker: cachedData.ticker
+          });
+        }
         return;
       }
 
@@ -56,6 +67,15 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
         if (result.success) {
           SearchCache.cacheAnalysis(cik, result);
           console.log(`Cached analysis data for CIK: ${cik}`);
+          
+          // Call completion callback if provided
+          if (onAnalysisComplete && result.ticker) {
+            onAnalysisComplete({
+              cik: cik,
+              name: companyName || result.ticker,
+              ticker: result.ticker
+            });
+          }
         }
 
         setData(result);
@@ -115,6 +135,9 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
     return <div>No data available for {companyName || `CIK: ${cik}`}</div>;  
   }
 
+  // Calculate integrity scores for insiders based on sentiment analysis
+  const insidersWithIntegrity = calculateInsiderIntegrity(data.insiders, data.sentiment);
+
   console.log("sentiment", data.sentiment)
 
   return (
@@ -129,10 +152,7 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName }) => {
       </div>
       <StockGraph insiderData={data} />
       <div className="mt-8">
-        <InsiderList insiders={data.insiders} />
-      </div>
-      <div>
-        {JSON.stringify(data.sentiment)}
+        <InsiderList insiders={insidersWithIntegrity} />
       </div>
     </div>
   );

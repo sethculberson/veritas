@@ -16,7 +16,23 @@ export interface GetInfoResponse {
   insiders: InsiderInfo[];
   stock_data: StockDataPoint[];
   ticker: string;
-  sentiment: any;
+  sentiment: FilingAnalysis[];
+}
+
+export interface FilingAnalysis {
+  filing_date: string;
+  url: string;
+  vector_prediction: VectorPrediction;
+}
+
+export interface VectorPrediction {
+  summary: string;
+  vector_prediction: PredictionResult;
+}
+
+export interface PredictionResult {
+  confidence: "Low" | "Medium" | "High";
+  impact: "STOCK_UP" | "NEUTRAL" | "STOCK_DOWN";
 }
 
 // Stock Data Types
@@ -31,6 +47,7 @@ export interface InsiderInfo {
   cik: string;
   roles: string[];
   trades: Trade[];
+  integrityScore?: number; // Calculated integrity score based on sentiment analysis
 }
 
 export interface Trade {

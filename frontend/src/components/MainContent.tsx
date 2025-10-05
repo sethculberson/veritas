@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import Analysis from './Analysis'; // Import the Analysis component
-import SearchCache from '../lib/searchCache'; // Import the search cache utility
+import Analysis from './Analysis';
+import SearchCache from '../lib/searchCache';
 
-// --- Mock CompanyScoreCard component ---
 const CompanyScoreCard = ({ company }: { company: any }) => {
   if (!company) return null;
   return (
@@ -14,13 +13,6 @@ const CompanyScoreCard = ({ company }: { company: any }) => {
   );
 };
 
-// --- Main Content Component ---
-interface MainContentProps {
-  onSearch: (query: string) => void;
-  onSearchSelect?: (company: string, cik: string) => void;
-  selectedFromSidebar?: {company: string, cik: string} | null;
-  clearSelectedFromSidebar?: () => void;
-}
 
 interface CompanySuggestion {
   cik_str: number;
@@ -28,37 +20,61 @@ interface CompanySuggestion {
   title: string;
 }
 
-const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, selectedFromSidebar, clearSelectedFromSidebar }) => {
+interface MainContentProps {
+  onSearch: (query: string) => void;
+  selectedFromSidebar?: {company: string, cik: string} | null;
+  clearSelectedFromSidebar?: () => void;
+}
+
+const MainContent: React.FC<MainContentProps> = ({ 
+  onSearch, 
+  selectedFromSidebar, 
+  clearSelectedFromSidebar 
+}) => {
   const [query, setQuery] = useState<string>('');
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [allCompanies, setAllCompanies] = useState<CompanySuggestion[]>([]);
-  const [selectedCik, setSelectedCik] = useState<string>('');
-  const [selectedCompanyName, setSelectedCompanyName] = useState<string>('');
-  const [analyze, setAnalyze] = useState<boolean>(false); // NEW: Only run analysis when true
-  const [skipSuggestions, setSkipSuggestions] = useState<boolean>(false); // Flag to skip suggestions
+  const [selectedCompany, setSelectedCompany] = useState<{
+    cik: string;
+    name: string;
+    ticker: string;
+  } | null>(null);
+  const [analyze, setAnalyze] = useState<boolean>(false);
+  const [skipSuggestions, setSkipSuggestions] = useState<boolean>(false);
+  const [isFromSidebar, setIsFromSidebar] = useState<boolean>(false);
 
-  // Effect to handle sidebar selection
   useEffect(() => {
     if (selectedFromSidebar) {
-      setSelectedCik(selectedFromSidebar.cik);
-      setSelectedCompanyName(selectedFromSidebar.company);
-      setSkipSuggestions(true); // Skip suggestions for this query change
-      setQuery(selectedFromSidebar.company); // Update search input to show selected company
-      setAnalyze(true); // ✅ Trigger analysis for sidebar selections
-      setShowSuggestions(false); // ✅ Hide suggestions dropdown
-      // Clear the sidebar selection after processing
+      const company = {
+        cik: selectedFromSidebar.cik,
+        name: selectedFromSidebar.company,
+        ticker: ''
+      };
+      setSelectedCompany(company);
+      setSkipSuggestions(true);
+      setAnalyze(true);
+      setShowSuggestions(false);
+      setIsFromSidebar(true);
+      
       if (clearSelectedFromSidebar) {
         clearSelectedFromSidebar();
       }
     }
   }, [selectedFromSidebar, clearSelectedFromSidebar]);
 
-  // --- Search Cache Management ---
   const saveSearch = (company: { cik: string; name: string; ticker: string }) => {
     SearchCache.addSearch(company.name, company.ticker, company.cik);
-    // Trigger sidebar update through custom event
     window.dispatchEvent(new Event('searchesUpdated'));
+  };
+
+  const handleAnalysisComplete = (company: { cik: string; name: string; ticker: string }) => {
+    // Only save to cache if this isn't from a sidebar selection
+    if (!isFromSidebar) {
+      saveSearch(company);
+    }
+    // Reset the flag for next analysis
+    setIsFromSidebar(false);
   };
 
   useEffect(() => {
@@ -77,7 +93,6 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, sel
   }, []);
 
   useEffect(() => {
-    // If we're skipping suggestions (from sidebar), reset the flag and don't show suggestions
     if (skipSuggestions) {
       setSkipSuggestions(false);
       return;
@@ -88,10 +103,9 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, sel
       setShowSuggestions(false);
       return;
     }
+    
     if (allCompanies.length > 0) {
       const lowercasedQuery = query.toLowerCase();
-
-      // Filter from all companies
       const filtered = allCompanies.filter(
         (company) =>
           company.title.toLowerCase().includes(lowercasedQuery) ||
@@ -117,33 +131,32 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, sel
     );
 
     if (match) {
-      setSelectedCik(match.cik_str.toString());
-      setSelectedCompanyName(match.title);
-      saveSearch({
+      const company = {
         cik: match.cik_str.toString(),
         name: match.title,
         ticker: match.ticker
-      });
-      setAnalyze(true); // ✅ only now trigger analysis
+      };
+      setSelectedCompany(company);
+      setIsFromSidebar(false);
+      setAnalyze(true);
     } else {
-      setSelectedCik('');
-      setSelectedCompanyName('');
+      setSelectedCompany(null);
       setAnalyze(false);
     }
   };
 
   const handleSuggestionClick = (suggestion: CompanySuggestion) => {
     setQuery(suggestion.title);
-    setSelectedCik(suggestion.cik_str.toString());
-    setSelectedCompanyName(suggestion.title);
-    saveSearch({
+    const company = {
       cik: suggestion.cik_str.toString(),
       name: suggestion.title,
       ticker: suggestion.ticker
-    });
+    };
+    setSelectedCompany(company);
     setSuggestions([]);
     setShowSuggestions(false);
-    setAnalyze(false); // ✅ don't auto-analyze on suggestion click
+    setIsFromSidebar(false);
+    setAnalyze(false);
   };
 
   return (
@@ -173,11 +186,11 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, sel
             onBlur={() => {
               setTimeout(() => {
                 setShowSuggestions(false);
-              }, 150); // Hide on blur with a small delay
+              }, 150);
             }}
             aria-label="Search company name or ticker"
             required
-            autoComplete="off" // Disable browser's default autofill
+            autoComplete="off"
           />
           <button
             type="submit"
@@ -205,9 +218,14 @@ const MainContent: React.FC<MainContentProps> = ({ onSearch, onSearchSelect, sel
         )}
       </form>
 
-      {/* ✅ Only render analysis if Analyze button was pressed */}
       <div className="mt-10 w-full max-w-4xl">
-        {analyze && selectedCik && <Analysis cik={selectedCik} companyName={selectedCompanyName} />}
+        {analyze && selectedCompany && (
+          <Analysis 
+            cik={selectedCompany.cik} 
+            companyName={selectedCompany.name}
+            onAnalysisComplete={handleAnalysisComplete}
+          />
+        )}
       </div>
     </div>
   );

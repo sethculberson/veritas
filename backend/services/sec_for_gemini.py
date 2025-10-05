@@ -123,10 +123,7 @@ def getSentiment(cik):
                 "url":item["filing_metadata"]["url"]
             }
             anals.append(dat)
-        output = {
-            "analysis": anals
-        }
-        return output
+        return anals
         # print(json.dumps(output, ensure_ascii=False, indent=2))
     except Exception as e:
         print(json.dumps({"error": f"Failed to process: {e}"}))

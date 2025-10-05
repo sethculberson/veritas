@@ -302,10 +302,6 @@ def getInfo(CIK):
                 formatted_stock_data.append({
                     'date': str(date_str),
                     'price': round(float(entry['Close']), 2),
-                    'open': round(float(entry.get('Open', 0)), 2),
-                    'high': round(float(entry.get('High', 0)), 2),
-                    'low': round(float(entry.get('Low', 0)), 2),
-                    'volume': int(entry.get('Volume', 0))
                 })
 
         # Calculate the sentiment

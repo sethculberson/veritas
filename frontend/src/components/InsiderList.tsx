@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { formatName } from "../lib/Trades";
 import PersonTrades from "./PersonTrades";
+import { getIntegrityScoreColor, getIntegrityScoreLabel } from "../lib/integrityCalculator";
 
 // Define the interface for a single insider based on the data structure
 interface Insider {
@@ -10,6 +11,7 @@ interface Insider {
   photoUrl?: string; // optional pre-provided URL
   trades: any[];
   company?: string;  // Add company context if available
+  integrityScore?: number; // Calculated integrity score
 }
 
 interface InsiderListProps {
@@ -20,6 +22,14 @@ interface InsiderListProps {
 
 const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker }) => {
   const [selectedPerson, setSelectedPerson] = useState<Insider | null>(null);
+
+  // Helper function to get hex color from integrity score
+  const getIntegrityColor = (score: number): string => {
+    if (score >= 80) return "#16a34a"; // green-600
+    if (score >= 60) return "#ca8a04"; // yellow-600
+    if (score >= 40) return "#ea580c"; // orange-600
+    return "#dc2626"; // red-600
+  };
 
   if (!insiders || insiders.length === 0) return <p>No insider information available.</p>;
 
@@ -128,18 +138,44 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <h4 style={{ 
-                  margin: "0 0 8px 0", 
-                  fontSize: "18px", 
-                  fontWeight: 600,
-                  color: "#111"
-                }}>
-                  {formatName(insider.name)}
-                </h4>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                  <h4 style={{ 
+                    margin: "0", 
+                    fontSize: "18px", 
+                    fontWeight: 600,
+                    color: "#111"
+                  }}>
+                    {formatName(insider.name)}
+                  </h4>
+                  {typeof insider.integrityScore === 'number' && (
+                    <div style={{ 
+                      fontSize: "12px", 
+                      fontWeight: "600",
+                      padding: "2px 8px",
+                      borderRadius: "12px",
+                      backgroundColor: insider.integrityScore >= 80 ? "#dcfce7" : 
+                                     insider.integrityScore >= 60 ? "#fef3c7" :
+                                     insider.integrityScore >= 40 ? "#fed7aa" : "#fecaca",
+                      color: getIntegrityScoreColor(insider.integrityScore)
+                    }}>
+                      {insider.integrityScore}/100
+                    </div>
+                  )}
+                </div>
                 <div style={{ color: "#666", fontSize: "14px" }}>
                   {/* FIX: Use optional chaining to prevent crash if roles is undefined */}
                   {insider.roles?.join(", ") || "No roles assigned"}
                 </div>
+                {typeof insider.integrityScore === 'number' && insider.integrityScore < 100 && (
+                  <div style={{ 
+                    color: getIntegrityColor(insider.integrityScore), 
+                    fontSize: "12px", 
+                    marginTop: "2px",
+                    fontWeight: "500"
+                  }}>
+                    {getIntegrityScoreLabel(insider.integrityScore)}
+                  </div>
+                )}
                 <div style={{ 
                   color: "#3b82f6", 
                   fontSize: "12px", 
