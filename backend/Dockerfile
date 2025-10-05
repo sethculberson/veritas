@@ -18,7 +18,6 @@ EXPOSE 8080
 # Set environment variables
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
-ENV PORT=8080
 
-# Run the application
-CMD ["python", "app.py"]
+# Run the application with gunicorn
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
