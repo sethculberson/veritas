@@ -26,16 +26,17 @@ const BASE_CONFIDENCE_PENALTIES: Record<string, number> = {
  * Calculate distance-based penalty multiplier
  * Closer to filing date = higher penalty
  * @param daysBeforeFiling Number of days between trade and filing
- * @returns Multiplier between 0.3 and 1.0
+ * @returns Multiplier between 0.1 and 1.0
  */
 function getDistanceMultiplier(daysBeforeFiling: number): number {
   // Maximum penalty for trades 1-3 days before filing
-  if (daysBeforeFiling <= 3) return 1.0;
+  if (daysBeforeFiling <= 1) return 1.5;
+  if (daysBeforeFiling <= 3) return 1.2;
   
-  // Linear decrease from 1.0 to 0.3 over 30 days
-  // 3 days = 1.0, 30 days = 0.3
-  const multiplier = 1.0 - ((daysBeforeFiling - 3) * 0.7) / 27;
-  return Math.max(0.3, Math.min(1.0, multiplier));
+  // Exponential decay
+  const k = 0.12 ; // decay constant
+  const multiplier = Math.exp(-k * (daysBeforeFiling - 3));
+  return Math.max(0.1, Math.min(1.2, multiplier));
 }
 
 /**
