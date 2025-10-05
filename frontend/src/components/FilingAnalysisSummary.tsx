@@ -28,6 +28,7 @@ const FilingAnalysisSummary: React.FC<FilingAnalysisSummaryProps> = ({ filingsAn
       case 'High':
         return 'bg-red-100 text-red-800';
       case 'Medium':
+      case 'Moderate':
         return 'bg-orange-100 text-orange-800';
       case 'Low':
         return 'bg-yellow-100 text-yellow-800';

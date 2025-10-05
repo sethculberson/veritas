@@ -110,7 +110,7 @@ def getSentiment(cik):
     """
     
     try:
-        results = parse_sec_filings(str(cik), 2, ["8-K"])
+        results = parse_sec_filings(str(cik), 10, ["8-K"])
         anals = []
         filings = results["filings"]
         eightklist = filings["8-K"]

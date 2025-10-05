@@ -163,7 +163,7 @@ const PersonTrades: React.FC<PersonTradesProps> = ({ person, sentimentData, onBa
                           <div className="flex items-center gap-3 text-xs">
                             <span className={`px-2 py-1 rounded-full font-medium ${
                               activity.filing.vector_prediction.vector_prediction.confidence === 'High' ? 'bg-red-200 text-red-800' :
-                              activity.filing.vector_prediction.vector_prediction.confidence === 'Medium' ? 'bg-orange-200 text-orange-800' :
+                              (activity.filing.vector_prediction.vector_prediction.confidence === 'Medium' || activity.filing.vector_prediction.vector_prediction.confidence === 'Moderate') ? 'bg-orange-200 text-orange-800' :
                               'bg-yellow-200 text-yellow-800'
                             }`}>
                               {activity.filing.vector_prediction.vector_prediction.confidence} Confidence

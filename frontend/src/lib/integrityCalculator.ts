@@ -19,6 +19,7 @@ interface IntegrityAnalysis {
 const CONFIDENCE_PENALTIES: Record<string, number> = {
   "High": 100,
   "Medium": 50,
+  "Moderate": 50, // Same as Medium
   "Low": 10
 };
 

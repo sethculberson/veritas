@@ -31,7 +31,7 @@ export interface VectorPrediction {
 }
 
 export interface PredictionResult {
-  confidence: "Low" | "Medium" | "High";
+  confidence: "Low" | "Medium" | "Moderate" | "High";
   impact: "STOCK_UP" | "NEUTRAL" | "STOCK_DOWN";
 }
 
