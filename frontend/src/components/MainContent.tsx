@@ -56,6 +56,7 @@ const MainContent: React.FC<MainContentProps> = ({
       setAnalyze(true);
       setShowSuggestions(false);
       setIsFromSidebar(true);
+      setQuery(''); // Clear the search bar
       
       if (clearSelectedFromSidebar) {
         clearSelectedFromSidebar();
@@ -80,7 +81,7 @@ const MainContent: React.FC<MainContentProps> = ({
   useEffect(() => {
     const fetchAllCompanies = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:5000/autofill`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/autofill`);
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         const companiesArray = Object.values(data) as CompanySuggestion[];
@@ -221,6 +222,7 @@ const MainContent: React.FC<MainContentProps> = ({
       <div className="mt-10 w-full max-w-4xl">
         {analyze && selectedCompany && (
           <Analysis 
+            key={selectedCompany.cik}
             cik={selectedCompany.cik} 
             companyName={selectedCompany.name}
             onAnalysisComplete={handleAnalysisComplete}

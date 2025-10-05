@@ -244,8 +244,8 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
                     const buys = transactionsOnDate.filter(t => t.chart_type === "buy");
                     if (buys.length > 0) {
-                        // Base size of 6, plus 1 for each additional buy transaction
-                        return 6 + (buys.length - 1) * 1;
+                        // Base size of 6, plus 1 for each additional buy transaction, max 30px
+                        return Math.min(20, 6 + (buys.length - 1) * 1);
                     }
                     return 0;
                 }),
@@ -253,8 +253,8 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
                     const buys = transactionsOnDate.filter(t => t.chart_type === "buy");
                     if (buys.length > 0) {
-                        // Keep the same size on hover to prevent flickering
-                        return 6 + (buys.length - 1) * 1;
+                        // Keep the same size on hover to prevent flickering, max 30px
+                        return Math.min(20, 6 + (buys.length - 1) * 1);
                     }
                     return 0;
                 }),
@@ -274,8 +274,8 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
                     const sells = transactionsOnDate.filter(t => t.chart_type === "sold");
                     if (sells.length > 0) {
-                        // Base size of 6, plus 1 for each additional sell transaction
-                        return 6 + (sells.length - 1) * 1;
+                        // Base size of 6, plus 1 for each additional sell transaction, max 30px
+                        return Math.min(30, 6 + (sells.length - 1) * 1);
                     }
                     return 0;
                 }),
@@ -283,8 +283,8 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                     const transactionsOnDate = displayedTransactions.filter((t: ChartTrade) => t.date === entry.date);
                     const sells = transactionsOnDate.filter(t => t.chart_type === "sold");
                     if (sells.length > 0) {
-                        // Keep the same size on hover to prevent flickering
-                        return 6 + (sells.length - 1) * 1;
+                        // Keep the same size on hover to prevent flickering, max 30px
+                        return Math.min(30, 6 + (sells.length - 1) * 1);
                     }
                     return 0;
                 }),

@@ -17,23 +17,9 @@ const FilingAnalysisSummary: React.FC<FilingAnalysisSummaryProps> = ({ filingsAn
       case 'STOCK_DOWN':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'NEUTRAL':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getConfidenceColor = (confidence: string) => {
-    switch (confidence) {
-      case 'High':
-        return 'bg-red-100 text-red-800';
-      case 'Medium':
-      case 'Moderate':
-        return 'bg-orange-100 text-orange-800';
-      case 'Low':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -46,19 +32,6 @@ const FilingAnalysisSummary: React.FC<FilingAnalysisSummaryProps> = ({ filingsAn
       });
     } catch {
       return dateStr;
-    }
-  };
-
-  const getSentimentIcon = (impact: string) => {
-    switch (impact) {
-      case 'STOCK_UP':
-        return '📈';
-      case 'STOCK_DOWN':
-        return '📉';
-      case 'NEUTRAL':
-        return '➡️';
-      default:
-        return '❓';
     }
   };
 
@@ -86,9 +59,9 @@ const FilingAnalysisSummary: React.FC<FilingAnalysisSummaryProps> = ({ filingsAn
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSentimentColor(filing.vector_prediction.vector_prediction.impact)}`}>
-                      {getSentimentIcon(filing.vector_prediction.vector_prediction.impact)} {filing.vector_prediction.vector_prediction.impact.replace('STOCK_', '')}
+                      {filing.vector_prediction.vector_prediction.impact.replace('STOCK_', '')}
                     </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(filing.vector_prediction.vector_prediction.confidence)}`}>
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                       {filing.vector_prediction.vector_prediction.confidence} Confidence
                     </span>
                   </div>

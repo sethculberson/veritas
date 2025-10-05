@@ -52,7 +52,7 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplet
       // If no cache, fetch from API
       try {
         console.log(`Fetching fresh analysis data for CIK: ${cik}`);
-        const response = await fetch(`http://127.0.0.1:5000/getInfo/${cik}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/getInfo/${cik}`);
 
         if (!response.ok) {
           // Handle specific error cases
@@ -149,8 +149,8 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplet
         <div className="flex items-center gap-3">
           {/* Company Integrity Score */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Company Integrity:</span>
-            <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+            <span className="text-lg font-medium text-gray-700">Company Integrity:</span>
+            <span className={`px-4 py-2 rounded-full text-lg font-bold ${
               companyIntegrityScore >= 80 ? 'bg-green-100 text-green-800' :
               companyIntegrityScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
               companyIntegrityScore >= 40 ? 'bg-orange-100 text-orange-800' :
