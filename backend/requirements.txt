@@ -7,6 +7,7 @@ lxml==6.0.2
 python-dotenv==1.1.1
 pymongo==4.15.2
 yfinance==0.2.66
+sentence-transformers==5.1.1
 pyrate-limiter==3.9.0
 pandas==2.3.3
 numpy==2.3.3

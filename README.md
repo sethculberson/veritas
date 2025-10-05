@@ -22,7 +22,7 @@ By analyzing the timing and sentiment of corporate filings, we assign **integrit
   - Calculates insider and company integrity scores based on trade timing and event impact.
 
 - 🔍 **Autofill Search**
-  - Type a company name or ticker — instantly fetch data via Flask & Redis caching.
+  - Type a company name or ticker — instantly fetch data via Flask & React caching.
 
 - 📈 **Visual Dashboard**
   - Interactive graphs showing stock price, filings, and insider activity trends.
