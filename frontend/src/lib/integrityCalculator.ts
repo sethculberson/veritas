@@ -132,13 +132,21 @@ export function analyzeTradeForSuspiciousActivity(
 export function calculateInsiderIntegrity(
   insiders: InsiderInfo[], 
   sentimentData: FilingAnalysis[]
-): InsiderInfo[] {
+): (InsiderInfo & { integrityScore: number; suspiciousTrades: SuspiciousTrade[] })[] {
   
   return insiders.map(insider => {
-    // Calculate integrity score for each trade
-    const tradeScores = insider.trades.map(trade => 
-      calculateTradeIntegrityScore(trade, sentimentData)
-    );
+    // Calculate integrity score for each trade and collect suspicious activities
+    const tradeScores: number[] = [];
+    const allSuspiciousTrades: SuspiciousTrade[] = [];
+    
+    insider.trades.forEach(trade => {
+      const score = calculateTradeIntegrityScore(trade, sentimentData);
+      tradeScores.push(score);
+      
+      // Collect suspicious activities for this trade
+      const suspiciousActivities = analyzeTradeForSuspiciousActivity(trade, sentimentData);
+      allSuspiciousTrades.push(...suspiciousActivities);
+    });
     
     // Calculate average integrity score for this insider
     const integrityScore = tradeScores.length > 0 
@@ -147,12 +155,13 @@ export function calculateInsiderIntegrity(
     
     // Log for debugging
     if (tradeScores.some(score => score < 100)) {
-      console.log(`Insider ${insider.name}: ${tradeScores.length} trades, scores: [${tradeScores.join(', ')}], average: ${integrityScore}`);
+      console.log(`Insider ${insider.name}: ${tradeScores.length} trades, scores: [${tradeScores.join(', ')}], average: ${integrityScore}, suspicious trades: ${allSuspiciousTrades.length}`);
     }
     
     return {
       ...insider,
-      integrityScore
+      integrityScore,
+      suspiciousTrades: allSuspiciousTrades
     };
   });
 }
@@ -162,7 +171,7 @@ export function calculateInsiderIntegrity(
  * @param insiders Array of insiders with calculated integrity scores
  * @returns Company integrity score (0-100)
  */
-export function calculateCompanyIntegrityScore(insiders: InsiderInfo[]): number {
+export function calculateCompanyIntegrityScore(insiders: (InsiderInfo & { integrityScore: number; suspiciousTrades: SuspiciousTrade[] })[]): number {
   const insidersWithScores = insiders.filter(insider => 
     typeof insider.integrityScore === 'number'
   );
@@ -213,9 +222,9 @@ export function getInsiderIntegrityAnalysis(
  * @returns CSS class for color coding
  */
 export function getIntegrityScoreColor(score: number): string {
-  if (score >= 80) return "bg-green-600";
-  if (score >= 60) return "bg-yellow-600"; 
-  if (score >= 40) return "bg-orange-600";
+  if (score >= 85) return "bg-green-600";
+  if (score >= 70) return "bg-yellow-600"; 
+  if (score >= 50) return "bg-orange-600";
   return "bg-red-600";
 }
 
@@ -225,8 +234,17 @@ export function getIntegrityScoreColor(score: number): string {
  * @returns Human readable label
  */
 export function getIntegrityScoreLabel(score: number): string {
-  if (score >= 80) return "High Integrity";
-  if (score >= 60) return "Medium Integrity";
-  if (score >= 40) return "Low Integrity";
+  if (score >= 85) return "High Integrity";
+  if (score >= 70) return "Medium Integrity";
+  if (score >= 50) return "Low Integrity";
   return "Very Low Integrity";
+}
+
+/**
+ * Count total suspicious trades across all insiders
+ * @param insiders Array of insiders with integrity analysis
+ * @returns Total number of suspicious trades
+ */
+export function countTotalSuspiciousTrades(insiders: (InsiderInfo & { integrityScore: number; suspiciousTrades: SuspiciousTrade[] })[]): number {
+  return insiders.reduce((total, insider) => total + insider.suspiciousTrades.length, 0);
 }

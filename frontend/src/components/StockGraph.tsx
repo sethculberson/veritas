@@ -12,6 +12,7 @@ Legend,
 } from "chart.js";
 import { GetInfoResponse, Trade } from '../lib/types';
 import { formatName } from "../lib/Trades";
+import { calculateInsiderIntegrity, calculateCompanyIntegrityScore, countTotalSuspiciousTrades } from '../lib/integrityCalculator';
 
 ChartJS.register(
 CategoryScale,
@@ -83,6 +84,11 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
     const totalCount = allTransactions.length;
     console.log(`Price estimation: ${estimatedCount}/${totalCount} transactions used estimated prices`);
     
+    // Calculate integrity scores for insiders based on sentiment analysis
+    const insidersWithIntegrity = calculateInsiderIntegrity(insiderData.insiders || [], insiderData.sentiment || []);
+    const companyIntegrityScore = calculateCompanyIntegrityScore(insidersWithIntegrity);
+    const totalSuspiciousTrades = countTotalSuspiciousTrades(insidersWithIntegrity);
+    
     // Filter transactions - first by date (past year), then by selected insider
     const Today = new Date();
     const oneYearAgo = Today.setFullYear(Today.getFullYear() - 1);
@@ -127,17 +133,8 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
     };
     
     const hideTooltip = () => {
-        // Don't hide immediately if tooltip is being hovered
-        if (isTooltipHovered) {
-            return;
-        }
-        
-        // Add a small delay to allow mouse movement to tooltip
-        hideTimeoutRef.current = window.setTimeout(() => {
-            if (!isTooltipHovered) {
-                setHoveredTransactions([]);
-            }
-        }, 100);
+        // Tooltip is now persistent - do not hide automatically
+        return;
     };
     
     // Keyboard navigation
@@ -380,10 +377,29 @@ function StockGraph({ insiderData }: {insiderData: GetInfoResponse}) {
                 }
             }}
         >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-start justify-between mb-4">
                 <h1 className="text-2xl font-bold">
                     {ticker} Stock Price History 1 year
                 </h1>
+                <div className="flex items-start gap-3">
+                    {/* Company Integrity Score */}
+                    <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg font-medium text-gray-700">Company Integrity:</span>
+                            <span className={`px-4 py-2 rounded-full text-lg font-bold ${
+                                companyIntegrityScore >= 80 ? 'bg-green-100 text-green-800' :
+                                companyIntegrityScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                companyIntegrityScore >= 40 ? 'bg-orange-100 text-orange-800' :
+                                'bg-red-100 text-red-800'
+                            }`}>
+                                {companyIntegrityScore}/100
+                            </span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                            {totalSuspiciousTrades} suspicious trade{totalSuspiciousTrades !== 1 ? 's' : ''}
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div className="mb-4">

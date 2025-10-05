@@ -156,9 +156,9 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, sentimentData, comp
                       fontWeight: "600",
                       padding: "2px 8px",
                       borderRadius: "12px",
-                      backgroundColor: insider.integrityScore >= 80 ? "#dcfce7" : 
-                                     insider.integrityScore >= 60 ? "#fef3c7" :
-                                     insider.integrityScore >= 40 ? "#fed7aa" : "#fecaca",
+                      backgroundColor: insider.integrityScore >= 85 ? "#dcfce7" : 
+                                     insider.integrityScore >= 70 ? "#fef3c7" :
+                                     insider.integrityScore >= 50 ? "#fed7aa" : "#fecaca",
                       color: getIntegrityScoreColor(insider.integrityScore)
                     }}>
                       {insider.integrityScore}/100
