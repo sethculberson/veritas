@@ -1,8 +1,18 @@
 import { FilingAnalysis, InsiderInfo, Trade } from './types';
 
-interface IntegrityPenalty {
-  confidence: "Low" | "Medium" | "High";
+interface SuspiciousTrade {
+  trade: Trade;
+  filing: FilingAnalysis;
   penalty: number;
+  reason: string;
+  daysBeforeFiling: number;
+}
+
+interface IntegrityAnalysis {
+  insider: InsiderInfo;
+  integrityScore: number;
+  suspiciousTrades: SuspiciousTrade[];
+  totalPenalty: number;
 }
 
 // Penalty mapping based on confidence levels
@@ -11,6 +21,59 @@ const CONFIDENCE_PENALTIES: Record<string, number> = {
   "Medium": 50,
   "Low": 10
 };
+
+/**
+ * Analyze a single trade for suspicious patterns
+ * @param trade The trade to analyze
+ * @param sentimentData Array of filing analyses
+ * @returns Array of suspicious trade details if any
+ */
+export function analyzeTradeForSuspiciousActivity(
+  trade: Trade, 
+  sentimentData: FilingAnalysis[]
+): SuspiciousTrade[] {
+  const suspiciousActivities: SuspiciousTrade[] = [];
+  const tradeDate = new Date(trade.date);
+  
+  sentimentData.forEach(filing => {
+    const filingDate = new Date(filing.filing_date);
+    const daysDifference = Math.floor((filingDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Check if trade occurred within 30 days before the filing
+    if (daysDifference >= 0 && daysDifference <= 30) {
+      const impact = filing.vector_prediction.vector_prediction.impact;
+      const confidence = filing.vector_prediction.vector_prediction.confidence;
+      
+      let isSuspicious = false;
+      let reason = "";
+      
+      // Case 1: STOCK_UP sentiment and insider bought before
+      if (impact === "STOCK_UP" && trade.acquired_disposed === "A") {
+        isSuspicious = true;
+        reason = `Purchased ${trade.shares} shares ${daysDifference} days before positive sentiment filing (${confidence} confidence)`;
+      }
+      
+      // Case 2: STOCK_DOWN sentiment and insider sold before  
+      if (impact === "STOCK_DOWN" && trade.acquired_disposed === "D") {
+        isSuspicious = true;
+        reason = `Sold ${trade.shares} shares ${daysDifference} days before negative sentiment filing (${confidence} confidence)`;
+      }
+      
+      if (isSuspicious) {
+        const penalty = CONFIDENCE_PENALTIES[confidence];
+        suspiciousActivities.push({
+          trade,
+          filing,
+          penalty,
+          reason,
+          daysBeforeFiling: daysDifference
+        });
+      }
+    }
+  });
+  
+  return suspiciousActivities;
+}
 
 /**
  * Calculate integrity scores for insiders based on sentiment analysis
@@ -25,46 +88,13 @@ export function calculateInsiderIntegrity(
   
   return insiders.map(insider => {
     let totalPenalty = 0;
-    const suspiciousTrades: Array<{trade: Trade, filing: FilingAnalysis, penalty: number}> = [];
+    const suspiciousTrades: SuspiciousTrade[] = [];
     
     // Check each trade against sentiment predictions
     insider.trades.forEach(trade => {
-      const tradeDate = new Date(trade.date);
-      
-      // Check against each sentiment filing
-      sentimentData.forEach(filing => {
-        const filingDate = new Date(filing.filing_date);
-        const daysDifference = Math.floor((filingDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Check if trade occurred within 30 days before the filing
-        if (daysDifference >= 0 && daysDifference <= 30) {
-          const impact = filing.vector_prediction.vector_prediction.impact;
-          const confidence = filing.vector_prediction.vector_prediction.confidence;
-          
-          let isSuspicious = false;
-          
-          // Case 1: STOCK_UP sentiment and insider bought before
-          if (impact === "STOCK_UP" && trade.acquired_disposed === "A") {
-            isSuspicious = true;
-          }
-          
-          // Case 2: STOCK_DOWN sentiment and insider sold before  
-          if (impact === "STOCK_DOWN" && trade.acquired_disposed === "D") {
-            isSuspicious = true;
-          }
-          
-          if (isSuspicious) {
-            const penalty = CONFIDENCE_PENALTIES[confidence];
-            totalPenalty += penalty;
-            
-            suspiciousTrades.push({
-              trade,
-              filing,
-              penalty
-            });
-          }
-        }
-      });
+      const tradeAnalysis = analyzeTradeForSuspiciousActivity(trade, sentimentData);
+      suspiciousTrades.push(...tradeAnalysis);
+      totalPenalty += tradeAnalysis.reduce((sum, analysis) => sum + analysis.penalty, 0);
     });
     
     // Calculate final integrity score (starting from 100, subtracting penalties)
@@ -80,6 +110,35 @@ export function calculateInsiderIntegrity(
       integrityScore
     };
   });
+}
+
+/**
+ * Get detailed integrity analysis for a specific insider
+ * @param insider Insider information
+ * @param sentimentData Array of filing analyses
+ * @returns Detailed analysis including suspicious trades
+ */
+export function getInsiderIntegrityAnalysis(
+  insider: InsiderInfo,
+  sentimentData: FilingAnalysis[]
+): IntegrityAnalysis {
+  let totalPenalty = 0;
+  const suspiciousTrades: SuspiciousTrade[] = [];
+  
+  insider.trades.forEach(trade => {
+    const tradeAnalysis = analyzeTradeForSuspiciousActivity(trade, sentimentData);
+    suspiciousTrades.push(...tradeAnalysis);
+    totalPenalty += tradeAnalysis.reduce((sum, analysis) => sum + analysis.penalty, 0);
+  });
+  
+  const integrityScore = Math.max(0, 100 - totalPenalty);
+  
+  return {
+    insider,
+    integrityScore,
+    suspiciousTrades,
+    totalPenalty
+  };
 }
 
 /**

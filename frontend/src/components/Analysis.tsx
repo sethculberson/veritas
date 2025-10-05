@@ -4,6 +4,7 @@ import StockGraph from './StockGraph';
 import InsiderList from './InsiderList';
 import SearchCache from '../lib/searchCache';
 import { calculateInsiderIntegrity } from '../lib/integrityCalculator';
+import FilingAnalysisSummary from './FilingAnalysisSummary';
 
 interface AnalysisProps {
   cik: string;
@@ -152,8 +153,9 @@ const Analysis: React.FC<AnalysisProps> = ({ cik, companyName, onAnalysisComplet
       </div>
       <StockGraph insiderData={data} />
       <div className="mt-8">
-        <InsiderList insiders={insidersWithIntegrity} />
+        <InsiderList insiders={insidersWithIntegrity} sentimentData={data.sentiment} />
       </div>
+      <FilingAnalysisSummary filingsAnalysis={data.sentiment} />
     </div>
   );
 };

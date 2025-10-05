@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { formatName } from "../lib/Trades";
 import PersonTrades from "./PersonTrades";
 import { getIntegrityScoreColor, getIntegrityScoreLabel } from "../lib/integrityCalculator";
+import { FilingAnalysis } from "../lib/types";
 
 // Define the interface for a single insider based on the data structure
 interface Insider {
@@ -16,11 +17,12 @@ interface Insider {
 
 interface InsiderListProps {
   insiders: Insider[];
+  sentimentData: FilingAnalysis[];
   companyName?: string; // Pass company name for better search context
   ticker?: string;      // Stock ticker for additional validation
 }
 
-const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker }) => {
+const InsiderList: React.FC<InsiderListProps> = ({ insiders, sentimentData, companyName, ticker }) => {
   const [selectedPerson, setSelectedPerson] = useState<Insider | null>(null);
 
   // Helper function to get hex color from integrity score
@@ -38,6 +40,7 @@ const InsiderList: React.FC<InsiderListProps> = ({ insiders, companyName, ticker
     return (
       <PersonTrades 
         person={selectedPerson} 
+        sentimentData={sentimentData}
         onBack={() => setSelectedPerson(null)}
       />
     );

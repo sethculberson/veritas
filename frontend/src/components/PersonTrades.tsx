@@ -1,6 +1,7 @@
 import React from 'react';
-import { Trade } from '../lib/types';
+import { Trade, FilingAnalysis } from '../lib/types';
 import { formatName } from '../lib/Trades';
+import { analyzeTradeForSuspiciousActivity } from '../lib/integrityCalculator';
 
 interface PersonTradesProps {
   person: {
@@ -9,10 +10,11 @@ interface PersonTradesProps {
     roles: string[];
     trades: Trade[];
   };
+  sentimentData: FilingAnalysis[];
   onBack: () => void;
 }
 
-const PersonTrades: React.FC<PersonTradesProps> = ({ person, onBack }) => {
+const PersonTrades: React.FC<PersonTradesProps> = ({ person, sentimentData, onBack }) => {
   // Sort trades by date (most recent first)
   const sortedTrades = [...person.trades].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -132,30 +134,73 @@ const PersonTrades: React.FC<PersonTradesProps> = ({ person, onBack }) => {
           <p className="text-gray-500 text-center py-8">No trades available for this person.</p>
         ) : (
           <div className="space-y-2">
-            {sortedTrades.map((trade, index) => (
-              <div 
-                key={index}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getActionColor(trade.transaction_code)}`}>
-                      {getTransactionTypeDisplay(trade)}
-                    </span>
-                    <div>
-                      <p className="font-medium text-gray-900">{trade.security}</p>
-                      <p className="text-sm text-gray-500">{formatDate(trade.date)}</p>
+            {sortedTrades.map((trade, index) => {
+              // Analyze this trade for suspicious activity
+              const suspiciousActivity = analyzeTradeForSuspiciousActivity(trade, sentimentData);
+              const isSuspicious = suspiciousActivity.length > 0;
+              
+              return (
+                <div 
+                  key={index}
+                  className={`border rounded-lg p-4 transition-colors ${
+                    isSuspicious 
+                      ? 'border-red-300 bg-red-50 hover:bg-red-100' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {/* Suspicious Activity Alert */}
+                  {isSuspicious && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-red-800 font-medium text-sm mb-2">
+                        <span className="text-red-600">⚠️</span>
+                        Potentially Suspicious Activity
+                      </div>
+                      {suspiciousActivity.map((activity, idx) => (
+                        <div key={idx} className="mb-2 last:mb-0">
+                          <div className="text-red-700 text-sm mb-1">
+                            • {activity.reason}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className={`px-2 py-1 rounded-full font-medium ${
+                              activity.filing.vector_prediction.vector_prediction.confidence === 'High' ? 'bg-red-200 text-red-800' :
+                              activity.filing.vector_prediction.vector_prediction.confidence === 'Medium' ? 'bg-orange-200 text-orange-800' :
+                              'bg-yellow-200 text-yellow-800'
+                            }`}>
+                              {activity.filing.vector_prediction.vector_prediction.confidence} Confidence
+                            </span>
+                            <a
+                              href={activity.filing.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              View SEC Filing →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getActionColor(trade.transaction_code)}`}>
+                        {getTransactionTypeDisplay(trade)}
+                      </span>
+                      <div>
+                        <p className="font-medium text-gray-900">{trade.security}</p>
+                        <p className="text-sm text-gray-500">{formatDate(trade.date)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">
+                        {formatNumber(trade.shares)} shares
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        @ {trade.price_per_share ? formatCurrency(trade.price_per_share) : 'N/A'}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">
-                      {formatNumber(trade.shares)} shares
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      @ {trade.price_per_share ? formatCurrency(trade.price_per_share) : 'N/A'}
-                    </p>
-                  </div>
-                </div>
                 
                 {/* Additional details */}
                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-sm text-gray-600">
@@ -179,7 +224,8 @@ const PersonTrades: React.FC<PersonTradesProps> = ({ person, onBack }) => {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
